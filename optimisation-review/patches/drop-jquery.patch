@@ -1,0 +1,399 @@
+diff -ruN a/src/angular.bind.js b/src/angular.bind.js
+--- a/src/angular.bind.js	2026-07-24 10:44:53.040585887 +1000
++++ b/src/angular.bind.js	2026-10-25 09:19:46.635521180 +1000
+@@ -6,6 +6,4 @@
+   return;
+ }
+ 
+-// try to bind to jquery now so that one can write jqLite(fn)
+-// but we will rebind on bootstrap again.
+-bindJQuery();
++
+diff -ruN a/src/Angular.js b/src/Angular.js
+--- a/src/Angular.js	2026-10-25 08:51:12.179463093 +1000
++++ b/src/Angular.js	2026-10-25 09:19:59.594157030 +1000
+@@ -4,7 +4,6 @@
+ /* exported
+   angular,
+   jqLite,
+-  jQuery,
+   slice,
+   splice,
+   push,
+@@ -63,7 +62,6 @@
+   simpleCompare,
+   equals,
+   csp,
+-  jq,
+   concat,
+   sliceArgs,
+   bind,
+@@ -83,7 +81,6 @@
+   bootstrap,
+   getTestability,
+   snake_case,
+-  bindJQuery,
+   assertArg,
+   assertArgFn,
+   assertNotHasOwnProperty,
+@@ -147,8 +144,7 @@
+ 
+ 
+ var
+-    jqLite,           // delay binding since jQuery could be loaded after us.
+-    jQuery,           // delay binding
++    jqLite,           // set to JQLite in jqLite.js
+     slice             = [].slice,
+     splice            = [].splice,
+     push              = [].push,
+@@ -174,11 +170,8 @@
+   // `null`, `undefined` and `window` are not array-like
+   if (obj == null || isWindow(obj)) return false;
+ 
+-  // arrays, strings and jQuery/jqLite objects are array like
+-  // * jqLite is either the jQuery or jqLite constructor function
+-  // * we have to check the existence of jqLite first as this method is called
+-  //   via the forEach method when constructing the jqLite object in the first place
+-  if (isArray(obj) || isString(obj) || (jqLite && obj instanceof jqLite)) return true;
++  // arrays, strings and jqLite objects are array like
++  if (isArray(obj) || isString(obj) || obj instanceof JQLite) return true;
+ 
+   var length = obj.length;
+ 
+@@ -1155,60 +1148,6 @@
+   }
+ };
+ 
+-/**
+- * @ngdoc directive
+- * @module ng
+- * @name ngJq
+- *
+- * @element ANY
+- * @param {string=} ngJq the name of the library available under `window`
+- * to be used for angular.element
+- * @description
+- * Use this directive to force the angular.element library.  This should be
+- * used to force either jqLite by leaving ng-jq blank or setting the name of
+- * the jquery variable under window (eg. jQuery).
+- *
+- * Since AngularJS looks for this directive when it is loaded (doesn't wait for the
+- * DOMContentLoaded event), it must be placed on an element that comes before the script
+- * which loads angular. Also, only the first instance of `ng-jq` will be used and all
+- * others ignored.
+- *
+- * @example
+- * This example shows how to force jqLite using the `ngJq` directive to the `html` tag.
+- ```html
+- <!doctype html>
+- <html ng-app ng-jq>
+- ...
+- ...
+- </html>
+- ```
+- * @example
+- * This example shows how to use a jQuery based library of a different name.
+- * The library name must be available at the top most 'window'.
+- ```html
+- <!doctype html>
+- <html ng-app ng-jq="jQueryLib">
+- ...
+- ...
+- </html>
+- ```
+- */
+-var jq = function() {
+-  if (isDefined(jq.name_)) return jq.name_;
+-  var el;
+-  var i, ii = ngAttrPrefixes.length, prefix, name;
+-  for (i = 0; i < ii; ++i) {
+-    prefix = ngAttrPrefixes[i];
+-    el = window.document.querySelector('[' + prefix.replace(':', '\\:') + 'jq]');
+-    if (el) {
+-      name = el.getAttribute(prefix + 'jq');
+-      break;
+-    }
+-  }
+-
+-  return (jq.name_ = name);
+-};
+-
+ function concat(array1, array2, index) {
+   return array1.concat(slice.call(array2, index));
+ }
+@@ -1895,61 +1834,6 @@
+   });
+ }
+ 
+-var bindJQueryFired = false;
+-function bindJQuery() {
+-  var originalCleanData;
+-
+-  if (bindJQueryFired) {
+-    return;
+-  }
+-
+-  // bind to jQuery if present;
+-  var jqName = jq();
+-  jQuery = isUndefined(jqName) ? window.jQuery :   // use jQuery (if present)
+-           !jqName             ? undefined     :   // use jqLite
+-                                 window[jqName];   // use jQuery specified by `ngJq`
+-
+-  // Use jQuery if it exists with proper functionality, otherwise default to us.
+-  // AngularJS 1.2+ requires jQuery 1.7+ for on()/off() support.
+-  // AngularJS 1.3+ technically requires at least jQuery 2.1+ but it may work with older
+-  // versions. It will not work for sure with jQuery <1.7, though.
+-  if (jQuery && jQuery.fn.on) {
+-    jqLite = jQuery;
+-    extend(jQuery.fn, {
+-      scope: JQLitePrototype.scope,
+-      isolateScope: JQLitePrototype.isolateScope,
+-      controller: /** @type {?} */ (JQLitePrototype).controller,
+-      injector: JQLitePrototype.injector,
+-      inheritedData: JQLitePrototype.inheritedData
+-    });
+-  } else {
+-    jqLite = JQLite;
+-  }
+-
+-  // All nodes removed from the DOM via various jqLite/jQuery APIs like .remove()
+-  // are passed through jqLite/jQuery.cleanData. Monkey-patch this method to fire
+-  // the $destroy event on all removed nodes.
+-  // (jqLite's own cleanData already does this, so only jQuery's needs patching.)
+-  if (jqLite !== JQLite) {
+-    originalCleanData = jqLite.cleanData;
+-    jqLite.cleanData = function(elems) {
+-      var events;
+-      for (var i = 0, elem; (elem = elems[i]) != null; i++) {
+-        events = (jqLite._data(elem) || {}).events;
+-        if (events && events.$destroy) {
+-          jqLite(elem).triggerHandler('$destroy');
+-        }
+-      }
+-      originalCleanData(elems);
+-    };
+-  }
+-
+-  angular.element = jqLite;
+-
+-  // Prevent double-proxying.
+-  bindJQueryFired = true;
+-}
+-
+ /**
+  * @ngdoc function
+  * @name angular.UNSAFE_restoreLegacyJqLiteXHTMLReplacement
+diff -ruN a/src/.eslintrc.json b/src/.eslintrc.json
+--- a/src/.eslintrc.json	2026-10-24 22:28:02.747848710 +1000
++++ b/src/.eslintrc.json	2026-10-25 09:19:46.636170595 +1000
+@@ -9,7 +9,6 @@
+     /* angular.js */
+     "angular": false,
+     "jqLite": false,
+-    "jQuery": false,
+     "slice": false,
+     "splice": false,
+     "push": false,
+@@ -89,7 +88,6 @@
+     "bootstrap": false,
+     "getTestability": false,
+     "snake_case": false,
+-    "bindJQuery": false,
+     "assertArg": false,
+     "assertArgFn": false,
+     "assertNotHasOwnProperty": false,
+diff -ruN a/src/jqLite.js b/src/jqLite.js
+--- a/src/jqLite.js	2026-10-25 08:50:08.005923259 +1000
++++ b/src/jqLite.js	2026-10-25 09:19:46.636319673 +1000
+@@ -131,6 +131,7 @@
+  * @returns {Object} jQuery object.
+  */
+ 
++jqLite = JQLite;
+ JQLite.expando = 'ng339';
+ 
+ var jqCache = JQLite.cache = {},
+diff -ruN a/src/ng/animate.js b/src/ng/animate.js
+--- a/src/ng/animate.js	2026-10-24 22:28:02.748811739 +1000
++++ b/src/ng/animate.js	2026-10-25 09:19:46.636635980 +1000
+@@ -351,13 +351,9 @@
+       var target = afterElement || parentElement;
+       var nodes = element && element.nodeType ? [element] : element;
+ 
+-      // Insert with plain DOM calls rather than the wrapper's `after()`/`prepend()`. With jQuery
+-      // loaded those go through `domManip`, which builds a fragment and scans it for scripts on
+-      // every call - a large share of ngRepeat/ngIf cost. Only defer to the wrapper where jQuery
+-      // would genuinely behave differently: multi-node targets (it clones the content into each)
+-      // and content containing <script> tags (it executes them).
+-      if (target && target.length === 1 && nodes && !isString(nodes) &&
+-          !(jqLite !== JQLite && containsScript(nodes))) {
++      // Insert with plain DOM calls rather than the wrapper's `after()`/`prepend()`; defer to the
++      // wrapper only for multi-node targets and string content.
++      if (target && target.length === 1 && nodes && !isString(nodes)) {
+         var targetNode = target[0];
+         var i, ii = nodes.length;
+         if (afterElement) {
+@@ -383,17 +379,6 @@
+       }
+     }
+ 
+-    function containsScript(nodes) {
+-      for (var i = 0, ii = nodes.length; i < ii; i++) {
+-        var node = nodes[i];
+-        if (node.nodeName === 'SCRIPT' ||
+-            (node.nodeType === NODE_TYPE_ELEMENT && node.getElementsByTagName('script').length)) {
+-          return true;
+-        }
+-      }
+-      return false;
+-    }
+-
+     /**
+      * @ngdoc service
+      * @name $animate
+diff -ruN a/src/ng/compile.js b/src/ng/compile.js
+--- a/src/ng/compile.js	2026-10-25 08:50:01.408475325 +1000
++++ b/src/ng/compile.js	2026-10-25 09:19:46.636975557 +1000
+@@ -2466,9 +2466,7 @@
+             wrapTemplate(namespace, jqLite('<div></div>').append($compileNodes).html())
+           );
+         } else if (cloneConnectFn) {
+-          // important!!: we must call our jqLite.clone() since the jQuery one is trying to be smart
+-          // and sometimes changes the structure of the DOM.
+-          $linkNode = JQLitePrototype.clone.call($compileNodes);
++          $linkNode = $compileNodes.clone();
+         } else {
+           $linkNode = $compileNodes;
+         }
+@@ -3965,12 +3963,6 @@
+             }
+             $rootElement.length -= removeCount - 1;
+ 
+-            // If the replaced element is also the jQuery .context then replace it
+-            // .context is a deprecated jQuery api, so we should set it only when jQuery set it
+-            // http://api.jquery.com/context/
+-            if ($rootElement.context === firstElementToRemove) {
+-              $rootElement.context = newNode;
+-            }
+             break;
+           }
+         }
+diff -ruN a/test/AngularSpec.js b/test/AngularSpec.js
+--- a/test/AngularSpec.js	2026-10-25 08:51:12.180942696 +1000
++++ b/test/AngularSpec.js	2026-10-25 09:19:46.637510862 +1000
+@@ -1236,93 +1236,6 @@
+   });
+ 
+ 
+-  describe('jq', function() {
+-    var element;
+-
+-    beforeEach(function() {
+-      element = document.createElement('html');
+-    });
+-
+-    afterEach(function() {
+-      delete jq.name_;
+-    });
+-
+-    it('should return undefined when jq is not set, no jQuery found (the default)', function() {
+-      expect(jq()).toBeUndefined();
+-    });
+-
+-    it('should return empty string when jq is enabled manually via [ng-jq] with empty string', function() {
+-      element.setAttribute('ng-jq', '');
+-      spyOn(document, 'querySelector').and.callFake(function(selector) {
+-        if (selector === '[ng-jq]') return element;
+-      });
+-      expect(jq()).toBe('');
+-    });
+-
+-    it('should return empty string when jq is enabled manually via [data-ng-jq] with empty string', function() {
+-      element.setAttribute('data-ng-jq', '');
+-      spyOn(document, 'querySelector').and.callFake(function(selector) {
+-        if (selector === '[data-ng-jq]') return element;
+-      });
+-      expect(jq()).toBe('');
+-      expect(document.querySelector).toHaveBeenCalledWith('[data-ng-jq]');
+-    });
+-
+-    it('should return empty string when jq is enabled manually via [x-ng-jq] with empty string', function() {
+-      element.setAttribute('x-ng-jq', '');
+-      spyOn(document, 'querySelector').and.callFake(function(selector) {
+-        if (selector === '[x-ng-jq]') return element;
+-      });
+-      expect(jq()).toBe('');
+-      expect(document.querySelector).toHaveBeenCalledWith('[x-ng-jq]');
+-    });
+-
+-    it('should return empty string when jq is enabled manually via [ng:jq] with empty string', function() {
+-      element.setAttribute('ng:jq', '');
+-      spyOn(document, 'querySelector').and.callFake(function(selector) {
+-        if (selector === '[ng\\:jq]') return element;
+-      });
+-      expect(jq()).toBe('');
+-      expect(document.querySelector).toHaveBeenCalledWith('[ng\\:jq]');
+-    });
+-
+-    it('should return "jQuery" when jq is enabled manually via [ng-jq] with value "jQuery"', function() {
+-      element.setAttribute('ng-jq', 'jQuery');
+-      spyOn(document, 'querySelector').and.callFake(function(selector) {
+-        if (selector === '[ng-jq]') return element;
+-      });
+-      expect(jq()).toBe('jQuery');
+-      expect(document.querySelector).toHaveBeenCalledWith('[ng-jq]');
+-    });
+-
+-    it('should return "jQuery" when jq is enabled manually via [data-ng-jq] with value "jQuery"', function() {
+-      element.setAttribute('data-ng-jq', 'jQuery');
+-      spyOn(document, 'querySelector').and.callFake(function(selector) {
+-        if (selector === '[data-ng-jq]') return element;
+-      });
+-      expect(jq()).toBe('jQuery');
+-      expect(document.querySelector).toHaveBeenCalledWith('[data-ng-jq]');
+-    });
+-
+-    it('should return "jQuery" when jq is enabled manually via [x-ng-jq] with value "jQuery"', function() {
+-      element.setAttribute('x-ng-jq', 'jQuery');
+-      spyOn(document, 'querySelector').and.callFake(function(selector) {
+-        if (selector === '[x-ng-jq]') return element;
+-      });
+-      expect(jq()).toBe('jQuery');
+-      expect(document.querySelector).toHaveBeenCalledWith('[x-ng-jq]');
+-    });
+-
+-    it('should return "jQuery" when jq is enabled manually via [ng:jq] with value "jQuery"', function() {
+-      element.setAttribute('ng:jq', 'jQuery');
+-      spyOn(document, 'querySelector').and.callFake(function(selector) {
+-        if (selector === '[ng\\:jq]') return element;
+-      });
+-      expect(jq()).toBe('jQuery');
+-      expect(document.querySelector).toHaveBeenCalledWith('[ng\\:jq]');
+-    });
+-  });
+-
+ 
+   describe('parseKeyValue', function() {
+     it('should parse a string into key-value pairs', function() {
+diff -ruN a/test/helpers/testabilityPatch.js b/test/helpers/testabilityPatch.js
+--- a/test/helpers/testabilityPatch.js	2026-07-24 10:44:53.070434393 +1000
++++ b/test/helpers/testabilityPatch.js	2026-10-25 09:19:46.637782080 +1000
+@@ -1,8 +1,6 @@
+ /* global jQuery: true, uid: true, jqCache: true */
+ 'use strict';
+ 
+-if (window.bindJQuery) bindJQuery();
+-
+ beforeEach(function() {
+ 
+   // all this stuff is not needed for module tests, where jqlite and publishExternalAPI and jqLite are not global vars
+@@ -12,9 +10,6 @@
+     // This resets global id counter;
+     uid = 0;
+ 
+-    // reset to jQuery or default to us.
+-    bindJQuery();
+-
+     // Clear the cache to prevent memory leak failures from previous tests
+     // breaking subsequent tests unnecessarily
+     jqCache = jqLite.cache = {};

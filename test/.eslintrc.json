@@ -145,10 +145,11 @@
 
     /* apis.js */
     "hashKey": false,
-    "NgMapShim": false,
+    "NgMap": false,
 
     /* urlUtils.js */
     "urlResolve": false,
+    "urlResolveHref": false,
     "urlIsSameOrigin": false,
     "urlIsSameOriginAsBaseUrl": false,
     "urlIsAllowedOriginFactory": false,

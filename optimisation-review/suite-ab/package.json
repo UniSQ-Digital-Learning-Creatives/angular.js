@@ -1,0 +1,8 @@
+{
+  "name": "suite-ab",
+  "private": true,
+  "description": "Runs every AngularJS page of the apps suite against two angular.min.js builds and diffs them. See README.md.",
+  "dependencies": {
+    "puppeteer-core": "23.11.1"
+  }
+}

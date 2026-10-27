@@ -1,0 +1,75 @@
+diff -ruN a/src/ng/rootScope.js b/src/ng/rootScope.js
+--- a/src/ng/rootScope.js	2026-10-25 08:51:12.180551390 +1000
++++ b/src/ng/rootScope.js	2026-10-25 09:39:07.032767940 +1000
+@@ -632,6 +632,31 @@
+         // only track veryOldValue if the listener is asking for it
+         var trackVeryOldValue = (listener.length > 1);
+         var changeDetected = 0;
++        var parsedObj = $parse(obj);
++        if (isString(obj) && parsedObj.inputs && /[^|]\|[^|]/.test(obj)) {
++          // EXPERIMENTAL (breaking): a pipeline of stateless filters over a collection is only
++          // re-evaluated when one of its inputs changed shallowly (identity, or for arrays and
++          // objects length and items), not on every digest. Deep changes inside the items are not seen.
++          var memoInputs = parsedObj.inputs, memoLast = new Array(memoInputs.length), memoSnap = new Array(memoInputs.length), memoResult, memoInit = false;
++          obj = function memoizedPipeline(scope) {
++            var changed = !memoInit, i, v, snap;
++            for (i = 0; i < memoInputs.length; i++) {
++              v = memoInputs[i](scope);
++              if (v !== memoLast[i]) changed = true;
++              else if (isObject(v)) {
++                snap = memoSnap[i];
++                if (isArray(v)) {
++                  if (!snap || snap.length !== v.length) changed = true;
++                  else for (var j = 0; j < v.length; j++) if (snap[j] !== v[j]) { changed = true; break; }
++                } else changed = true;
++              }
++              memoLast[i] = v;
++              if (changed && isArray(v)) memoSnap[i] = v.slice();
++            }
++            if (changed) { memoInit = true; memoResult = parsedObj(scope); }
++            return memoResult;
++          };
++        }
+         var changeDetector = $parse(obj, $watchCollectionInterceptor);
+         var internalArray = [];
+         var internalObject = {};
+diff -ruN a/test/ng/rootScopeSpec.js b/test/ng/rootScopeSpec.js
+--- a/test/ng/rootScopeSpec.js	2026-10-25 08:51:12.181287462 +1000
++++ b/test/ng/rootScopeSpec.js	2026-10-25 09:39:07.033094766 +1000
+@@ -3350,6 +3350,36 @@
+     }));
+   });
+ 
++  describe('$watchCollection on a filter pipeline (memoized)', function() {
++    it('should only re-run the pipeline when an input changes shallowly', inject(function($rootScope) {
++      var runs = 0, seen;
++      $rootScope.items = [{n: 3}, {n: 1}, {n: 2}];
++      $rootScope.$watchCollection('items | orderBy:"n"', function(v) { runs++; seen = v.map(function(x) { return x.n; }); });
++      $rootScope.$digest();
++      expect(seen).toEqual([1, 2, 3]);
++      expect(runs).toBe(1);
++
++      // nothing changed: the pipeline is not evaluated again, and the listener does not fire
++      $rootScope.$digest();
++      expect(runs).toBe(1);
++
++      // shallow change of the list is seen
++      $rootScope.items.push({n: 0});
++      $rootScope.$digest();
++      expect(seen).toEqual([0, 1, 2, 3]);
++
++      // BREAKING: a change inside an item is not seen, the order stays stale
++      $rootScope.items[0].n = -5;
++      $rootScope.$digest();
++      expect(seen).toEqual([0, 1, 2, 3]);
++
++      // until the list itself is touched
++      $rootScope.items = $rootScope.items.slice();
++      $rootScope.$digest();
++      expect(seen).toEqual([-5, 0, 1, 2]);
++    }));
++  });
++
+   describe('doc examples', function() {
+ 
+     it('should properly fire off watch listeners upon scope changes', inject(function($rootScope) {

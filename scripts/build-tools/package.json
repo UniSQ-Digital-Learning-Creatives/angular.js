@@ -1,0 +1,12 @@
+{
+  "name": "angular-build-tools",
+  "private": true,
+  "description": "The tools scripts/build-lib.js needs (terser build, minErr pre-pass, --profile builds). Kept apart from the repo's legacy Grunt/Karma devDependencies so `npm run build:tools` installs only these.",
+  "dependencies": {
+    "acorn": "8.19.0",
+    "acorn-walk": "8.3.5",
+    "eslint-scope": "9.1.2",
+    "magic-string": "1.4.3",
+    "terser": "5.51.2"
+  }
+}

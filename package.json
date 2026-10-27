@@ -26,7 +26,13 @@
     "commit": "git-cz",
     "test-i18n": "jasmine-node i18n/spec",
     "test-i18n-ucd": "jasmine-node i18n/ucd/spec",
-    "build:lib": "node scripts/build-lib.js"
+    "build:lib": "node scripts/build-lib.js",
+    "build:tools": "npm --prefix scripts/build-tools install",
+    "build:lib:closure": "node scripts/build-lib.js --minifier=closure",
+    "build:suite": "node scripts/build-lib.js --profile=suite --install",
+    "release:si-manager": "npm run build:suite && node scripts/publish-si-manager.js",
+    "check:profile": "node scripts/check-profile.js --profile=suite",
+    "measure:features": "node scripts/measure-features.js"
   },
   "devDependencies": {
     "angular-benchpress": "0.x.x",

@@ -2034,9 +2034,9 @@ function $CompileProvider($provide, $$sanitizeUriProvider) {
 
 
   this.$get = [
-            '$injector', '$interpolate', '$exceptionHandler', '$templateRequest', '$parse',
+            '$injector', '$interpolate', '$exceptionHandler', '$parse',
             '$controller', '$rootScope', '$sce', '$animate',
-    function($injector,   $interpolate,   $exceptionHandler,   $templateRequest,   $parse,
+    function($injector,   $interpolate,   $exceptionHandler,   $parse,
              $controller,   $rootScope,   $sce,   $animate) {
 
     var SIMPLE_ATTR_NAME = /^\w/;
@@ -2466,9 +2466,7 @@ function $CompileProvider($provide, $$sanitizeUriProvider) {
             wrapTemplate(namespace, jqLite('<div></div>').append($compileNodes).html())
           );
         } else if (cloneConnectFn) {
-          // important!!: we must call our jqLite.clone() since the jQuery one is trying to be smart
-          // and sometimes changes the structure of the DOM.
-          $linkNode = JQLitePrototype.clone.call($compileNodes);
+          $linkNode = $compileNodes.clone();
         } else {
           $linkNode = $compileNodes;
         }
@@ -2519,20 +2517,11 @@ function $CompileProvider($provide, $$sanitizeUriProvider) {
     function compileNodes(nodeList, transcludeFn, $rootElement, maxPriority, ignoreDirective,
                             previousCompileContext) {
       var linkFns = [],
-          // `nodeList` can be either an element's `.childNodes` (live NodeList)
-          // or a jqLite/jQuery collection or an array
-          notLiveList = isArray(nodeList) || (nodeList instanceof jqLite),
           attrs, directives, nodeLinkFn, childNodes, childLinkFn, linkFnFound, nodeLinkFnFound;
 
 
       for (var i = 0; i < nodeList.length; i++) {
         attrs = new Attributes();
-
-        // Support: IE 11 only
-        // Workaround for #11781 and #14924
-        if (msie === 11) {
-          mergeConsecutiveTextNodes(nodeList, i, notLiveList);
-        }
 
         // We must always refer to `nodeList[i]` hereafter,
         // since the nodes can be replaced underneath us.
@@ -2622,32 +2611,6 @@ function $CompileProvider($provide, $$sanitizeUriProvider) {
           } else if (childLinkFn) {
             childLinkFn(scope, node.childNodes, undefined, parentBoundTranscludeFn);
           }
-        }
-      }
-    }
-
-    function mergeConsecutiveTextNodes(nodeList, idx, notLiveList) {
-      var node = nodeList[idx];
-      var parent = node.parentNode;
-      var sibling;
-
-      if (node.nodeType !== NODE_TYPE_TEXT) {
-        return;
-      }
-
-      while (true) {
-        sibling = parent ? node.nextSibling : nodeList[idx + 1];
-        if (!sibling || sibling.nodeType !== NODE_TYPE_TEXT) {
-          break;
-        }
-
-        node.nodeValue = node.nodeValue + sibling.nodeValue;
-
-        if (sibling.parentNode) {
-          sibling.parentNode.removeChild(sibling);
-        }
-        if (notLiveList && sibling === nodeList[idx + 1]) {
-          nodeList.splice(idx + 1, 1);
         }
       }
     }
@@ -3643,7 +3606,8 @@ function $CompileProvider($provide, $$sanitizeUriProvider) {
 
       $compileNode.empty();
 
-      $templateRequest(templateUrl)
+      // $templateRequest (and with it $http and $httpBackend) is only instantiated once a template is needed
+      $injector.get('$templateRequest')(templateUrl)
         .then(function(content) {
           var compileNode, tempTemplateAttrs, $template, childBoundTranscludeFn;
 
@@ -3999,12 +3963,6 @@ function $CompileProvider($provide, $$sanitizeUriProvider) {
             }
             $rootElement.length -= removeCount - 1;
 
-            // If the replaced element is also the jQuery .context then replace it
-            // .context is a deprecated jQuery api, so we should set it only when jQuery set it
-            // http://api.jquery.com/context/
-            if ($rootElement.context === firstElementToRemove) {
-              $rootElement.context = newNode;
-            }
             break;
           }
         }

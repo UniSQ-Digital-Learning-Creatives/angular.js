@@ -339,27 +339,6 @@ describe('ngInclude', function() {
     }));
 
 
-    it('should exec scripts when jQuery is included', inject(function($compile, $rootScope, $httpBackend) {
-      if (!jQuery) {
-        return;
-      }
-
-      element = $compile('<div><span ng-include="includeUrl"></span></div>')($rootScope);
-
-      // the element needs to be appended for the script to run
-      element.appendTo(window.document.body);
-      window._ngIncludeCausesScriptToRun = false;
-      $httpBackend.expect('GET', 'url1').respond('<script>window._ngIncludeCausesScriptToRun = true;</script>');
-      $rootScope.includeUrl = 'url1';
-      $rootScope.$digest();
-      $httpBackend.flush();
-
-      expect(window._ngIncludeCausesScriptToRun).toBe(true);
-
-      delete window._ngIncludeCausesScriptToRun;
-    }));
-
-
     it('should construct SVG template elements with correct namespace', function() {
       if (!window.SVGRectElement) return;
       module(function($compileProvider) {
@@ -823,5 +802,173 @@ describe('ngInclude', function() {
         expect(destroyed).toBe(true);
       });
     });
+  });
+
+  describe('repeatedly included templates', function() {
+    var element, compiles;
+
+    beforeEach(module(function($compileProvider) {
+      compiles = 0;
+      $compileProvider.directive('countCompile', function() {
+        return {
+          compile: function() {
+            compiles++;
+            return function(scope, el) { el.attr('data-linked', 'yes'); };
+          }
+        };
+      });
+    }));
+
+    afterEach(function() {
+      dealoc(element);
+    });
+
+    function put(url, content) {
+      inject(function($templateCache) {
+        $templateCache.put(url, [200, content, {}]);
+      });
+    }
+
+    it('should render every inclusion of the same template with its own scope', inject(function($compile, $rootScope) {
+      put('tpl', '<b count-compile>{{item}}</b>');
+      element = $compile('<div><p ng-repeat="item in items"><span ng-include="\'tpl\'"></span></p></div>')($rootScope);
+      $rootScope.items = ['a', 'b', 'c', 'd', 'e'];
+      $rootScope.$digest();
+
+      expect(element.text()).toBe('abcde');
+      expect(element.find('b').length).toBe(5);
+      forEach(element.find('b'), function(b) {
+        expect(b.getAttribute('data-linked')).toBe('yes');
+      });
+
+      $rootScope.items[2] = 'X';
+      $rootScope.$digest();
+      expect(element.text()).toBe('abXde');
+    }));
+
+    it('should not compile the template again for every inclusion', inject(function($compile, $rootScope) {
+      put('tpl', '<b count-compile>{{item}}</b>');
+      element = $compile('<div><p ng-repeat="item in items"><span ng-include="\'tpl\'"></span></p></div>')($rootScope);
+      $rootScope.items = [1, 2, 3, 4, 5, 6, 7, 8];
+      $rootScope.$digest();
+
+      expect(element.text()).toBe('12345678');
+      expect(compiles).toBeLessThan(3);
+
+      $rootScope.items = [9, 10, 11];
+      $rootScope.$digest();
+      expect(element.text()).toBe('91011');
+      expect(compiles).toBeLessThan(3);
+    }));
+
+    it('should keep event handlers and scopes of the inclusions independent', inject(function($compile, $rootScope) {
+      put('tpl', '<button ng-click="item.clicked = item.clicked + 1">{{item.clicked}}</button>');
+      element = $compile('<div><p ng-repeat="item in items"><span ng-include="\'tpl\'"></span></p></div>')($rootScope);
+      $rootScope.items = [{clicked: 0}, {clicked: 0}, {clicked: 0}, {clicked: 0}];
+      $rootScope.$digest();
+
+      var buttons = element.find('button');
+      browserTrigger(buttons[2], 'click');
+      browserTrigger(buttons[2], 'click');
+      browserTrigger(buttons[0], 'click');
+
+      expect(element.text()).toBe('1020');
+      expect($rootScope.items.map(function(i) { return i.clicked; })).toEqual([1, 0, 2, 0]);
+    }));
+
+    it('should not leave scopes or handlers behind when inclusions are removed', inject(function($compile, $rootScope) {
+      put('tpl', '<b count-compile ng-click="n = n + 1">{{n}}</b>');
+      element = $compile('<div><p ng-repeat="item in items"><span ng-include="src"></span></p></div>')($rootScope);
+      $rootScope.src = 'tpl';
+      $rootScope.items = [1, 2, 3, 4];
+      $rootScope.$digest();
+      var scopesWithInclusions = countScopes($rootScope);
+
+      $rootScope.src = '';
+      $rootScope.$digest();
+      expect(element.find('b').length).toBe(0);
+      expect(countScopes($rootScope)).toBeLessThan(scopesWithInclusions);
+
+      $rootScope.src = 'tpl';
+      $rootScope.$digest();
+      expect(element.find('b').length).toBe(4);
+      expect(countScopes($rootScope)).toBe(scopesWithInclusions);
+
+      function countScopes(scope) {
+        var count = 1;
+        for (var child = scope.$$childHead; child; child = child.$$nextSibling) count += countScopes(child);
+        return count;
+      }
+    }));
+
+    it('should use the new content when the cached template of an url changes', inject(function($compile, $rootScope) {
+      put('tpl', '<i>one {{item}}</i>');
+      element = $compile('<div><p ng-repeat="item in items"><span ng-include="src"></span></p></div>')($rootScope);
+      $rootScope.src = 'tpl';
+      $rootScope.items = [1, 2, 3];
+      $rootScope.$digest();
+      expect(element.text()).toBe('one 1one 2one 3');
+
+      put('tpl', '<i>two {{item}}</i>');
+      $rootScope.src = '';
+      $rootScope.$digest();
+      $rootScope.src = 'tpl';
+      $rootScope.$digest();
+      expect(element.text()).toBe('two 1two 2two 3');
+    }));
+
+    it('should switch between different templates', inject(function($compile, $rootScope) {
+      put('a', '<i count-compile>A{{item}}</i>');
+      put('b', '<u count-compile>B{{item}}</u>');
+      element = $compile('<div><p ng-repeat="item in items"><span ng-include="src"></span></p></div>')($rootScope);
+      $rootScope.items = [1, 2, 3];
+      forEach(['a', 'b', 'a', 'b', 'a'], function(src) {
+        $rootScope.src = src;
+        $rootScope.$digest();
+        expect(element.text()).toBe(src === 'a' ? 'A1A2A3' : 'B1B2B3');
+      });
+    }));
+
+    it('should include templates with several root nodes, text nodes and nested directives', inject(function($compile, $rootScope) {
+      put('tpl', 'text <i ng-if="show">{{item}}</i><!-- c --><span ng-repeat="x in [1,2]">{{x}}</span>');
+      element = $compile('<div><p ng-repeat="item in items"><span ng-include="\'tpl\'"></span></p></div>')($rootScope);
+      $rootScope.show = true;
+      $rootScope.items = ['a', 'b', 'c'];
+      $rootScope.$digest();
+      expect(element.text()).toBe('text a12text b12text c12');
+
+      $rootScope.show = false;
+      $rootScope.$digest();
+      expect(element.text()).toBe('text 12text 12text 12');
+    }));
+
+    it('should not cache templates that contain scripts', inject(function($compile, $rootScope) {
+      put('tpl', '<b count-compile>{{item}}</b><script type="text/x-nothing"></script>');
+      element = $compile('<div><p ng-repeat="item in items"><span ng-include="\'tpl\'"></span></p></div>')($rootScope);
+      $rootScope.items = [1, 2, 3, 4];
+      $rootScope.$digest();
+      expect(element.text()).toBe('1234');
+      expect(compiles).toBe(4);
+    }));
+
+    it('should keep working with more distinct templates than the linker cache holds', inject(function($compile, $rootScope) {
+      var items = [];
+      for (var i = 0; i < 130; i++) {
+        put('t' + i, '<b>' + i + '{{item}}</b>');
+        items.push(i);
+      }
+      element = $compile('<div><p ng-repeat="item in items"><span ng-include="\'t\' + item"></span></p></div>')($rootScope);
+      $rootScope.items = items;
+      $rootScope.$digest();
+      // include everything a second and a third time
+      $rootScope.items = items.slice().reverse();
+      $rootScope.$digest();
+      $rootScope.items = items;
+      $rootScope.$digest();
+
+      var expected = '';
+      for (i = 0; i < 130; i++) expected += i + '' + i;
+      expect(element.text()).toBe(expected);
+    }));
   });
 });

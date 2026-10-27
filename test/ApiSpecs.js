@@ -68,9 +68,9 @@ describe('api', function() {
     });
   });
 
-  describe('NgMapShim', function() {
+  describe('NgMap', function() {
     it('should do basic crud', function() {
-      var map = new NgMapShim();
+      var map = new NgMap();
       var keys = [{}, {}, {}];
       var values = [{}, {}, {}];
 
@@ -90,7 +90,7 @@ describe('api', function() {
     });
 
     it('should return if a key exists or not', function() {
-      var map = new NgMapShim();
+      var map = new NgMap();
       var keys = ['foo', {}];
 
       expect(map.has(keys[0])).toBe(false);
@@ -118,7 +118,7 @@ describe('api', function() {
     });
 
     it('should be able to deal with `NaN` keys', function() {
-      var map = new NgMapShim();
+      var map = new NgMap();
 
       map.set('NaN', 'foo');
       map.set(NaN, 'bar');

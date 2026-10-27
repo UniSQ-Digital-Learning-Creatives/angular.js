@@ -1,6 +1,15 @@
 AngularJS [![CircleCI](https://circleci.com/gh/angular/angular.js/tree/master.svg?style=shield)](https://circleci.com/gh/angular/workflows/angular.js/tree/master)
 =========
 
+> **This is a fork of AngularJS 1.8.3, tuned for the StudyDesk Toolbox apps suite.**
+> - It targets 2020+ browsers only.
+> - It never binds to jQuery.
+> - Its shipped build leaves out the features the suite doesn't use, and is minified with terser
+>   (no Java).
+>
+> Read [FORK.md](FORK.md) for how it differs from upstream and how to build and release it, and
+> `optimisation-review/DECISIONS.md` for how it was verified. The rest of this README is upstream's.
+
 AngularJS lets you write client-side web applications as if you had a smarter browser.  It lets you
 use good old HTML (or HAML, Jade/Pug and friends!) as your template language and lets you extend HTML’s
 syntax to express your application’s components clearly and succinctly.  It automatically

@@ -1,0 +1,1780 @@
+diff -ruN a/package.json b/package.json
+--- a/package.json	2026-10-25 08:50:01.403697955 +1000
++++ b/package.json	2026-10-25 09:39:05.738058706 +1000
+@@ -27,11 +27,15 @@
+     "test-i18n": "jasmine-node i18n/spec",
+     "test-i18n-ucd": "jasmine-node i18n/ucd/spec",
+     "build:lib": "node scripts/build-lib.js",
+-    "build:lib:closure": "node scripts/build-lib.js --minifier=closure"
++    "build:lib:closure": "node scripts/build-lib.js --minifier=closure",
++    "build:profile": "node scripts/build-lib.js --profile=suite",
++    "check:profile": "node scripts/check-profile.js --profile=suite",
++    "measure:features": "node scripts/measure-features.js"
+   },
+   "devDependencies": {
+     "acorn": "^8.19.0",
+     "acorn-walk": "^8.3.5",
++    "eslint-scope": "^9.1.2",
+     "magic-string": "^1.4.3",
+     "terser": "^5.51.2",
+     "angular-benchpress": "0.x.x",
+diff -ruN a/scripts/build-lib.js b/scripts/build-lib.js
+--- a/scripts/build-lib.js	2026-10-25 08:50:01.403836874 +1000
++++ b/scripts/build-lib.js	2026-10-25 09:39:05.738267333 +1000
+@@ -32,6 +32,16 @@
+ // --out-dir=<dir>: write build output elsewhere than ./build (parallel experiments)
+ var BUILD_DIR = argValue('out-dir') ? path.resolve(argValue('out-dir')) : path.join(ROOT, 'build');
+ 
++// --profile=<name|path>: exclude features listed in scripts/profiles/<name>.json (see scripts/profiles.js)
++var PROFILE = null;
++var profiles = require('./profiles');
++if (argValue('profile')) {
++  PROFILE = profiles.create(profiles.loadProfile(argValue('profile')));
++}
++// --exclude=a,b,c: ad-hoc profile (used for measuring the cost of individual features)
++if (argValue('exclude') !== null) {
++  PROFILE = require('./profiles').create({exclude: argValue('exclude').split(',').filter(Boolean)});
++}
+ // --targets=angular,angular-loader: only build/minify these targets (dest without .js)
+ var ONLY_TARGETS = argValue('targets') ? argValue('targets').split(',') : null;
+ 
+@@ -41,7 +51,7 @@
+ 
+ function read(relPath) {
+   var text = fs.readFileSync(abs(relPath), 'utf8');
+-  return text;
++  return PROFILE ? PROFILE.transform(relPath, text) : text;
+ }
+ 
+ // ---------------------------------------------------------------------------
+@@ -158,7 +168,17 @@
+ }
+ 
+ function buildTarget(target, version) {
+-  var src = target.files.map(read).join('\n');
++  var files = PROFILE ? target.files.filter(function(f) { return !PROFILE.dropFiles[f]; }) : target.files;
++  var src = files.map(read).join('\n');
++  if (PROFILE && target.dest === 'angular.js') {
++    // safety net: cutting features must not leave references to code that no longer exists
++    var baselineSrc = target.files.map(function(f) { return fs.readFileSync(abs(f), 'utf8'); }).join('\n');
++    var dangling = profiles.danglingReferences(src, baselineSrc);
++    if (dangling.length) {
++      throw new Error('profile leaves dangling references (a kept file uses code that was cut): ' + dangling.join(', ') +
++        '\nFix the feature recipe in scripts/features.json (or exclude the dependent feature too).');
++    }
++  }
+   var processed = processSource(src, version, target.strict);
+   if (target.styles) {
+     processed = addStyle(processed, target.styles, true);
+@@ -192,6 +212,7 @@
+ var TERSER_OPTIONS = {
+   ecma: 2020,
+   // these top-level helpers only build closures/arrays, so an unused `var x = helper(...)` can be dropped
++  // (this is what lets excluded features -- see scripts/profiles.js -- be tree-shaken)
+   compress: {passes: 2, ecma: 2020, pure_funcs: ['valueFn', 'ngDirective', 'classDirective', 'formDirectiveFactory', 'minErr']},
+   mangle: true,
+   format: {ascii_only: true, comments: false}
+@@ -320,6 +341,13 @@
+   var version = getVersion();
+   console.log('Building AngularJS ' + version.full + ' (Node ' + process.version + ')');
+ 
++  if (PROFILE) {
++    var allFiles = angularFiles.angularSrc;
++    var missing = PROFILE.unusedFileDrops(allFiles);
++    if (missing.length) throw new Error('profile drops files that are not in angularFiles.angularSrc: ' + missing.join(', '));
++    console.log('Profile excludes ' + PROFILE.exclude.length + ' feature(s): ' + PROFILE.exclude.join(', '));
++  }
++
+   fs.rmSync(BUILD_DIR, {recursive: true, force: true});
+   fs.mkdirSync(BUILD_DIR, {recursive: true});
+ 
+@@ -341,8 +369,8 @@
+ }
+ 
+ function finish() {
+-  if ((ONLY_TARGETS || argValue('out-dir')) && process.argv.indexOf('--install') === -1) {
+-    console.log('Partial build: output left in build/ (pass --install to also copy to the package root).');
++  if ((PROFILE || ONLY_TARGETS || argValue('out-dir')) && process.argv.indexOf('--install') === -1) {
++    console.log('Profile/partial build: output left in build/ (pass --install to also copy to the package root).');
+     return;
+   }
+   // Also expose the files consumers expect to find at the package root
+diff -ruN a/scripts/build-tools.js b/scripts/build-tools.js
+--- a/scripts/build-tools.js	2026-10-25 08:50:01.403990932 +1000
++++ b/scripts/build-tools.js	2026-10-25 09:39:05.738426391 +1000
+@@ -17,7 +17,7 @@
+   } catch (e) {
+     if (e.code !== 'MODULE_NOT_FOUND') throw e;
+     throw new Error('Build tool "' + name + '" is not installed. The terser-based build needs: ' +
+-      'npm install --no-save terser acorn acorn-walk magic-string\n' +
++      'npm install --no-save terser acorn acorn-walk magic-string eslint-scope\n' +
+       '(or point NG_BUILD_TOOLS at a node_modules directory that has them, or build with the legacy ' +
+       '`--minifier=closure` which only needs Java).');
+   }
+diff -ruN a/scripts/check-profile.js b/scripts/check-profile.js
+--- a/scripts/check-profile.js	1970-01-01 10:00:00.000000000 +1000
++++ b/scripts/check-profile.js	2026-10-25 09:39:05.738504940 +1000
+@@ -0,0 +1,50 @@
++#!/usr/bin/env node
++'use strict';
++
++/**
++ * Dangling-reference check for a profile build.
++ *
++ *   node scripts/check-profile.js --profile=suite        (or --exclude=a,b)
++ *
++ * Builds the un-minified bundle with and without the profile and reports every identifier that is referenced
++ * but no longer declared once features were cut (what would be a ReferenceError the moment that code path runs).
++ * Exit code 1 if any are found.
++ */
++var fs = require('fs');
++var os = require('os');
++var path = require('path');
++var cp = require('child_process');
++var tools = require('./build-tools');
++var acorn = tools.require('acorn');
++var escope = tools.require('eslint-scope');
++
++var ROOT = path.resolve(__dirname, '..');
++var passThrough = process.argv.slice(2).filter(function(a) { return /^--(profile|exclude)=/.test(a); });
++var tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ngcheck-'));
++
++function unresolved(dir) {
++  var code = fs.readFileSync(path.join(dir, 'angular.js'), 'utf8');
++  var ast = acorn.parse(code, {ecmaVersion: 'latest', sourceType: 'script', ranges: true});
++  var manager = escope.analyze(ast, {ecmaVersion: 2020, sourceType: 'script'});
++  var out = {};
++  manager.globalScope.through.forEach(function(ref) { out[ref.identifier.name] = (out[ref.identifier.name] || 0) + 1; });
++  return out;
++}
++function build(name, extra) {
++  var dir = path.join(tmp, name);
++  var r = cp.spawnSync('node', [path.join(__dirname, 'build-lib.js'), '--targets=angular', '--no-minify', '--out-dir=' + dir].concat(extra),
++    {cwd: ROOT, encoding: 'utf8'});
++  if (r.status !== 0) { console.error(r.stderr || r.stdout); process.exit(2); }
++  return dir;
++}
++
++var base = unresolved(build('base', []));
++var prof = unresolved(build('prof', passThrough));
++var bad = Object.keys(prof).filter(function(n) { return !(n in base); });
++fs.rmSync(tmp, {recursive: true, force: true});
++if (bad.length) {
++  console.log('Dangling references introduced by the profile:');
++  bad.forEach(function(n) { console.log('  ' + n + ' (x' + prof[n] + ')'); });
++  process.exit(1);
++}
++console.log('OK: no dangling references (' + Object.keys(base).length + ' browser globals unchanged).');
+diff -ruN a/scripts/features.json b/scripts/features.json
+--- a/scripts/features.json	1970-01-01 10:00:00.000000000 +1000
++++ b/scripts/features.json	2026-10-25 09:39:05.738556489 +1000
+@@ -0,0 +1,1189 @@
++{
++ "ngPluralize": {
++  "description": "ng-pluralize directive",
++  "category": "directive",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "ngPluralize: ngPluralizeDirective"
++   }
++  ],
++  "specs": [
++   "test/ng/directive/ngPluralizeSpec.js"
++  ]
++ },
++ "ngList": {
++  "description": "ng-list directive",
++  "category": "directive",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "ngList: ngListDirective"
++   }
++  ],
++  "specs": [
++   "test/ng/directive/ngListSpec.js"
++  ]
++ },
++ "ngRef": {
++  "description": "ng-ref / ng-ref-read",
++  "category": "directive",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "ngRef: ngRefDirective"
++   }
++  ],
++  "specs": [
++   "test/ng/directive/ngRefSpec.js"
++  ]
++ },
++ "ngNonBindable": {
++  "description": "ng-non-bindable",
++  "category": "directive",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "ngNonBindable: ngNonBindableDirective"
++   }
++  ],
++  "specs": [
++   "test/ng/directive/ngNonBindableSpec.js"
++  ]
++ },
++ "ngSwitch": {
++  "description": "ng-switch / when / default",
++  "category": "directive",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "ngSwitch: ngSwitchDirective"
++   },
++   {
++    "file": "src/AngularPublic.js",
++    "match": "ngSwitchWhen: ngSwitchWhenDirective"
++   },
++   {
++    "file": "src/AngularPublic.js",
++    "match": "ngSwitchDefault: ngSwitchDefaultDirective"
++   }
++  ],
++  "specs": [
++   "test/ng/directive/ngSwitchSpec.js"
++  ]
++ },
++ "ngStyle": {
++  "description": "ng-style",
++  "category": "directive",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "ngStyle: ngStyleDirective"
++   }
++  ],
++  "specs": [
++   "test/ng/directive/ngStyleSpec.js"
++  ]
++ },
++ "ngInit": {
++  "description": "ng-init",
++  "category": "directive",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "ngInit: ngInitDirective"
++   }
++  ],
++  "specs": [
++   "test/ng/directive/ngInitSpec.js"
++  ]
++ },
++ "ngBindTemplate": {
++  "description": "ng-bind-template",
++  "category": "directive",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "ngBindTemplate: ngBindTemplateDirective"
++   }
++  ]
++ },
++ "ngBindHtml": {
++  "description": "ng-bind-html",
++  "category": "directive",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "ngBindHtml: ngBindHtmlDirective"
++   }
++  ]
++ },
++ "ngClassEvenOdd": {
++  "description": "ng-class-even / ng-class-odd",
++  "category": "directive",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "ngClassEven: ngClassEvenDirective"
++   },
++   {
++    "file": "src/AngularPublic.js",
++    "match": "ngClassOdd: ngClassOddDirective"
++   }
++  ]
++ },
++ "ngCloak": {
++  "description": "ng-cloak directive (the CSS rule stays)",
++  "category": "directive",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "ngCloak: ngCloakDirective"
++   }
++  ],
++  "specs": [
++   "test/ng/directive/ngCloakSpec.js"
++  ]
++ },
++ "ngController": {
++  "description": "ng-controller directive",
++  "category": "directive",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "ngController: ngControllerDirective"
++   }
++  ],
++  "notes": "ngController attr; $controller service stays (needed by $compile controllers)",
++  "specs": [
++   "test/ng/directive/ngControllerSpec.js"
++  ]
++ },
++ "ngShowHide": {
++  "description": "ng-show / ng-hide",
++  "category": "directive",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "ngHide: ngHideDirective"
++   },
++   {
++    "file": "src/AngularPublic.js",
++    "match": "ngShow: ngShowDirective"
++   }
++  ],
++  "specs": [
++   "test/ng/directive/ngShowHideSpec.js"
++  ]
++ },
++ "ngIf": {
++  "description": "ng-if",
++  "category": "directive",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "ngIf: ngIfDirective"
++   }
++  ],
++  "specs": [
++   "test/ng/directive/ngIfSpec.js"
++  ]
++ },
++ "ngInclude": {
++  "description": "ng-include (+ fill-content)",
++  "category": "directive",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "ngInclude: ngIncludeDirective"
++   },
++   {
++    "file": "src/AngularPublic.js",
++    "match": "ngInclude: ngIncludeFillContentDirective"
++   }
++  ],
++  "specs": [
++   "test/ng/directive/ngIncludeSpec.js"
++  ]
++ },
++ "ngRepeat": {
++  "description": "ng-repeat",
++  "category": "directive",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "ngRepeat: ngRepeatDirective"
++   }
++  ],
++  "specs": [
++   "test/ng/directive/ngRepeatSpec.js"
++  ]
++ },
++ "ngTransclude": {
++  "description": "ng-transclude",
++  "category": "directive",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "ngTransclude: ngTranscludeDirective"
++   }
++  ]
++ },
++ "ngChange": {
++  "description": "ng-change",
++  "category": "directive",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "ngChange: ngChangeDirective"
++   }
++  ],
++  "specs": [
++   "test/ng/directive/ngChangeSpec.js"
++  ]
++ },
++ "ngValue": {
++  "description": "ng-value",
++  "category": "directive",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "ngValue: ngValueDirective"
++   }
++  ]
++ },
++ "ngModelOptions": {
++  "description": "ng-model-options",
++  "category": "directive",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "ngModelOptions: ngModelOptionsDirective"
++   }
++  ],
++  "notes": "ngModel reads ngModelOptions via require: ? so stays functional",
++  "specs": [
++   "test/ng/directive/ngModelOptionsSpec.js"
++  ]
++ },
++ "ngPattern": {
++  "description": "pattern / ng-pattern validator",
++  "category": "directive",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "pattern: patternDirective"
++   },
++   {
++    "file": "src/AngularPublic.js",
++    "match": "ngPattern: patternDirective"
++   }
++  ]
++ },
++ "ngRequired": {
++  "description": "required / ng-required validator",
++  "category": "directive",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "required: requiredDirective"
++   },
++   {
++    "file": "src/AngularPublic.js",
++    "match": "ngRequired: requiredDirective"
++   }
++  ]
++ },
++ "ngMinlength": {
++  "description": "minlength / ng-minlength validator",
++  "category": "directive",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "minlength: minlengthDirective"
++   },
++   {
++    "file": "src/AngularPublic.js",
++    "match": "ngMinlength: minlengthDirective"
++   }
++  ]
++ },
++ "ngMaxlength": {
++  "description": "maxlength / ng-maxlength validator",
++  "category": "directive",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "maxlength: maxlengthDirective"
++   },
++   {
++    "file": "src/AngularPublic.js",
++    "match": "ngMaxlength: maxlengthDirective"
++   }
++  ]
++ },
++ "form": {
++  "description": "form / ng-form directive + FormController",
++  "category": "directive",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "form: formDirective"
++   },
++   {
++    "file": "src/AngularPublic.js",
++    "match": "ngForm: ngFormDirective"
++   }
++  ],
++  "edits": [
++   {
++    "file": "src/ng/directive/form.js",
++    "removeStatement": "addSetValidityMethod({\n  clazz: FormController"
++   },
++   {
++    "file": "src/ng/directive/form.js",
++    "removeConstructor": "FormController"
++   },
++   {
++    "file": "src/ng/directive/form.js",
++    "removeStatement": "var formDirectiveFactory"
++   },
++   {
++    "file": "src/ng/directive/form.js",
++    "removeStatement": "var formDirective = "
++   },
++   {
++    "file": "src/ng/directive/form.js",
++    "removeStatement": "var ngFormDirective = "
++   }
++  ],
++  "notes": "ngModel requires ^?form (optional); form validity (ng-submit gating, $valid) lost",
++  "specs": [
++   "test/ng/directive/formSpec.js"
++  ]
++ },
++ "select": {
++  "description": "select directive (non-ngOptions) + option directive",
++  "category": "directive",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "select: selectDirective"
++   },
++   {
++    "file": "src/AngularPublic.js",
++    "match": "option: optionDirective"
++   }
++  ],
++  "notes": "ngOptions also needs selectDirective/optionDirective; remove select only if no <select ng-model>",
++  "specs": [
++   "test/ng/directive/selectSpec.js"
++  ]
++ },
++ "ngOptions": {
++  "description": "ng-options",
++  "category": "directive",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "ngOptions: ngOptionsDirective"
++   }
++  ],
++  "specs": [
++   "test/ng/directive/ngOptionsSpec.js"
++  ]
++ },
++ "script": {
++  "description": "<script type=text/ng-template> template-cache directive",
++  "category": "directive",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "script: scriptDirective"
++   }
++  ],
++  "specs": [
++   "test/ng/directive/scriptSpec.js"
++  ]
++ },
++ "htmlAnchor": {
++  "description": "<a href=\"\"> preventDefault directive",
++  "category": "directive",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "a: htmlAnchorDirective"
++   }
++  ],
++  "specs": [
++   "test/ng/directive/aSpec.js"
++  ]
++ },
++ "hiddenInputCache": {
++  "description": "hidden-input browser-cache workaround directive",
++  "category": "directive",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "input: hiddenInputBrowserCacheDirective"
++   }
++  ]
++ },
++ "$cacheFactory": {
++  "description": "$cacheFactory (also backs $templateCache and $http cache)",
++  "category": "service",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "$cacheFactory: $CacheFactoryProvider"
++   },
++   {
++    "file": "src/AngularPublic.js",
++    "match": "$templateCache: $TemplateCacheProvider"
++   }
++  ],
++  "notes": "removes $templateCache too: breaks $templateRequest/ngInclude/templateUrl",
++  "specs": [
++   "test/ng/cacheFactorySpec.js"
++  ]
++ },
++ "$interval": {
++  "description": "$interval + $$intervalFactory",
++  "category": "service",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "$interval: $IntervalProvider"
++   },
++   {
++    "file": "src/AngularPublic.js",
++    "match": "$$intervalFactory: $$IntervalFactoryProvider"
++   }
++  ],
++  "notes": "$$intervalFactory also used by $timeout? (measured)",
++  "specs": [
++   "test/ng/intervalSpec.js"
++  ]
++ },
++ "$log": {
++  "description": "$log service",
++  "category": "service",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "$log: $LogProvider"
++   }
++  ],
++  "notes": "default $exceptionHandler uses $log",
++  "specs": [
++   "test/ng/logSpec.js"
++  ]
++ },
++ "$httpParamSerializerJQLike": {
++  "description": "$httpParamSerializerJQLike",
++  "category": "service",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "$httpParamSerializerJQLike: $HttpParamSerializerJQLikeProvider"
++   }
++  ]
++ },
++ "$$testability": {
++  "description": "$$testability + angular.getTestability",
++  "category": "service",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "$$testability: $$TestabilityProvider"
++   },
++   {
++    "file": "src/AngularPublic.js",
++    "match": "'getTestability': getTestability"
++   }
++  ],
++  "specs": [
++   "test/ng/testabilitySpec.js"
++  ]
++ },
++ "$location": {
++  "description": "$location service",
++  "category": "service",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "$location: $LocationProvider"
++   }
++  ],
++  "edits": [
++   {
++    "file": "src/ng/location.js",
++    "removeStatement": "forEach([LocationHashbangInHtml5Url"
++   }
++  ],
++  "notes": "$anchorScroll, ngRoute etc. inject it; $browser URL machinery stays",
++  "specs": [
++   "test/ng/locationSpec.js"
++  ]
++ },
++ "$$isDocumentHidden": {
++  "description": "$$isDocumentHidden (used by $$rAF/animate)",
++  "category": "service",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "$$isDocumentHidden: $$IsDocumentHiddenProvider"
++   }
++  ]
++ },
++ "$animateCss": {
++  "description": "$animateCss (core, CSS-less stub)",
++  "category": "service",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "$animateCss: $CoreAnimateCssProvider"
++   }
++  ],
++  "specs": [
++   "test/ng/animateCssSpec.js"
++  ]
++ },
++ "$sce": {
++  "description": "$sce/$sceDelegate (needed by interpolate, ngInclude, ngBindHtml)",
++  "category": "service",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "$sce: $SceProvider"
++   },
++   {
++    "file": "src/AngularPublic.js",
++    "match": "$sceDelegate: $SceDelegateProvider"
++   }
++  ]
++ },
++ "angular.reloadWithDebugInfo": {
++  "description": "angular.reloadWithDebugInfo()",
++  "category": "angular.*",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "'reloadWithDebugInfo': reloadWithDebugInfo,"
++   }
++  ]
++ },
++ "angular.UNSAFE_restoreLegacyJqLiteXHTMLReplacement": {
++  "description": "UNSAFE_restoreLegacyJqLiteXHTMLReplacement",
++  "category": "angular.*",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "'UNSAFE_restoreLegacyJqLiteXHTMLReplacement': UNSAFE_restoreLegacyJqLiteXHTMLReplacement,"
++   }
++  ]
++ },
++ "angular.errorHandlingConfig": {
++  "description": "angular.errorHandlingConfig (no-op in production builds: minErr is replaced)",
++  "category": "angular.*",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "'errorHandlingConfig': errorHandlingConfig,"
++   }
++  ]
++ },
++ "angular.merge": {
++  "description": "angular.merge",
++  "category": "angular.*",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "'merge': merge,"
++   }
++  ]
++ },
++ "angular.bind": {
++  "description": "angular.bind",
++  "category": "angular.*",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "'bind': bind,"
++   }
++  ]
++ },
++ "angular.isDate": {
++  "description": "angular.isDate",
++  "category": "angular.*",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "'isDate': isDate,"
++   }
++  ]
++ },
++ "angular.equals": {
++  "description": "angular.equals",
++  "category": "angular.*",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "'equals': equals,"
++   }
++  ]
++ },
++ "angular.copy": {
++  "description": "angular.copy",
++  "category": "angular.*",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "'copy': copy,"
++   }
++  ]
++ },
++ "angular.fromJson": {
++  "description": "angular.fromJson",
++  "category": "angular.*",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "'fromJson': fromJson,"
++   }
++  ]
++ },
++ "angular.injector": {
++  "description": "angular.injector (standalone injector)",
++  "category": "angular.*",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "'injector': createInjector,"
++   }
++  ]
++ },
++ "angular.callbacks": {
++  "description": "angular.callbacks (JSONP counter)",
++  "category": "angular.*",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "'callbacks': {$$counter: 0},"
++   }
++  ]
++ },
++ "filter.currency": {
++  "description": "currency filter",
++  "category": "filter",
++  "lines": [
++   {
++    "file": "src/ng/filter.js",
++    "match": "register('currency', "
++   }
++  ]
++ },
++ "filter.date": {
++  "description": "date filter",
++  "category": "filter",
++  "lines": [
++   {
++    "file": "src/ng/filter.js",
++    "match": "register('date', "
++   }
++  ]
++ },
++ "filter.filter": {
++  "description": "filter filter",
++  "category": "filter",
++  "lines": [
++   {
++    "file": "src/ng/filter.js",
++    "match": "register('filter', "
++   }
++  ],
++  "specs": [
++   "test/ng/filter/filterSpec.js"
++  ]
++ },
++ "filter.json": {
++  "description": "json filter",
++  "category": "filter",
++  "lines": [
++   {
++    "file": "src/ng/filter.js",
++    "match": "register('json', "
++   }
++  ]
++ },
++ "filter.limitTo": {
++  "description": "limitTo filter",
++  "category": "filter",
++  "lines": [
++   {
++    "file": "src/ng/filter.js",
++    "match": "register('limitTo', "
++   }
++  ],
++  "specs": [
++   "test/ng/filter/limitToSpec.js"
++  ]
++ },
++ "filter.lowercase": {
++  "description": "lowercase filter",
++  "category": "filter",
++  "lines": [
++   {
++    "file": "src/ng/filter.js",
++    "match": "register('lowercase', "
++   }
++  ]
++ },
++ "filter.number": {
++  "description": "number filter",
++  "category": "filter",
++  "lines": [
++   {
++    "file": "src/ng/filter.js",
++    "match": "register('number', "
++   }
++  ]
++ },
++ "filter.orderBy": {
++  "description": "orderBy filter",
++  "category": "filter",
++  "lines": [
++   {
++    "file": "src/ng/filter.js",
++    "match": "register('orderBy', "
++   }
++  ],
++  "specs": [
++   "test/ng/filter/orderBySpec.js"
++  ]
++ },
++ "filter.uppercase": {
++  "description": "uppercase filter",
++  "category": "filter",
++  "lines": [
++   {
++    "file": "src/ng/filter.js",
++    "match": "register('uppercase', "
++   }
++  ]
++ },
++ "input.date": {
++  "description": "<input type=date>",
++  "category": "input type",
++  "edits": [
++   {
++    "file": "src/ng/directive/input.js",
++    "find": "  'date': createDateInputType('date', DATE_REGEXP,\n         createDateParser(DATE_REGEXP, ['yyyy', 'MM', 'dd']),\n         'yyyy-MM-dd'),\n",
++    "replace": ""
++   }
++  ]
++ },
++ "input.datetime-local": {
++  "description": "<input type=datetime-local>",
++  "category": "input type",
++  "edits": [
++   {
++    "file": "src/ng/directive/input.js",
++    "find": "  'datetime-local': createDateInputType('datetimelocal', DATETIMELOCAL_REGEXP,\n      createDateParser(DATETIMELOCAL_REGEXP, ['yyyy', 'MM', 'dd', 'HH', 'mm', 'ss', 'sss']),\n      'yyyy-MM-ddTHH:mm:ss.sss'),\n",
++    "replace": ""
++   }
++  ]
++ },
++ "input.time": {
++  "description": "<input type=time>",
++  "category": "input type",
++  "edits": [
++   {
++    "file": "src/ng/directive/input.js",
++    "find": "  'time': createDateInputType('time', TIME_REGEXP,\n      createDateParser(TIME_REGEXP, ['HH', 'mm', 'ss', 'sss']),\n     'HH:mm:ss.sss'),\n",
++    "replace": ""
++   }
++  ]
++ },
++ "input.week": {
++  "description": "<input type=week>",
++  "category": "input type",
++  "edits": [
++   {
++    "file": "src/ng/directive/input.js",
++    "find": "  'week': createDateInputType('week', WEEK_REGEXP, weekParser, 'yyyy-Www'),\n",
++    "replace": ""
++   }
++  ]
++ },
++ "input.month": {
++  "description": "<input type=month>",
++  "category": "input type",
++  "edits": [
++   {
++    "file": "src/ng/directive/input.js",
++    "find": "  'month': createDateInputType('month', MONTH_REGEXP,\n     createDateParser(MONTH_REGEXP, ['yyyy', 'MM']),\n     'yyyy-MM'),\n",
++    "replace": ""
++   }
++  ]
++ },
++ "input.number": {
++  "description": "<input type=number>",
++  "category": "input type",
++  "edits": [
++   {
++    "file": "src/ng/directive/input.js",
++    "find": "  'number': numberInputType,\n",
++    "replace": ""
++   }
++  ]
++ },
++ "input.url": {
++  "description": "<input type=url>",
++  "category": "input type",
++  "edits": [
++   {
++    "file": "src/ng/directive/input.js",
++    "find": "  'url': urlInputType,\n",
++    "replace": ""
++   }
++  ]
++ },
++ "input.email": {
++  "description": "<input type=email>",
++  "category": "input type",
++  "edits": [
++   {
++    "file": "src/ng/directive/input.js",
++    "find": "  'email': emailInputType,\n",
++    "replace": ""
++   }
++  ]
++ },
++ "input.radio": {
++  "description": "<input type=radio>",
++  "category": "input type",
++  "edits": [
++   {
++    "file": "src/ng/directive/input.js",
++    "find": "  'radio': radioInputType,\n",
++    "replace": ""
++   }
++  ]
++ },
++ "input.range": {
++  "description": "<input type=range>",
++  "category": "input type",
++  "edits": [
++   {
++    "file": "src/ng/directive/input.js",
++    "find": "  'range': rangeInputType,\n",
++    "replace": ""
++   }
++  ]
++ },
++ "input.checkbox": {
++  "description": "<input type=checkbox>",
++  "category": "input type",
++  "edits": [
++   {
++    "file": "src/ng/directive/input.js",
++    "find": "  'checkbox': checkboxInputType,\n",
++    "replace": ""
++   }
++  ]
++ },
++ "jsonp": {
++  "description": "JSONP: $http.jsonp, JSONP url sanitising, <script> transport in $httpBackend, $jsonpCallbacks",
++  "category": "$http",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "$jsonpCallbacks: $jsonpCallbacksProvider"
++   }
++  ],
++  "edits": [
++   {
++    "file": "src/ng/http.js",
++    "find": "isJsonp = lowercase(config.method) === 'jsonp',",
++    "replace": "isJsonp = false,"
++   },
++   {
++    "file": "src/ng/http.js",
++    "find": "createShortMethods('get', 'delete', 'head', 'jsonp');",
++    "replace": "createShortMethods('get', 'delete', 'head');"
++   },
++   {
++    "file": "src/ng/httpBackend.js",
++    "find": "this.$get = ['$browser', '$jsonpCallbacks', '$document', '$xhrFactory', function($browser, $jsonpCallbacks, $document, $xhrFactory) {\n    return createHttpBackend($browser, $xhrFactory, $browser.defer, $jsonpCallbacks, $document[0]);",
++    "replace": "this.$get = ['$browser', '$document', '$xhrFactory', function($browser, $document, $xhrFactory) {\n    return createHttpBackend($browser, $xhrFactory, $browser.defer, null, $document[0]);"
++   },
++   {
++    "file": "src/ng/httpBackend.js",
++    "find": "if (lowercase(method) === 'jsonp') {",
++    "replace": "if (false) {"
++   }
++  ],
++  "notes": "$http({method:\"JSONP\"}) / $http.jsonp() would then POST/GET as a normal XHR with method JSONP (invalid)",
++  "specs": [
++   "test/ng/jsonpCallbacksSpec.js"
++  ]
++ },
++ "xsrf": {
++  "description": "XSRF header injection ($$cookieReader + xsrfTrustedOrigins check) in $http",
++  "category": "$http",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "$$cookieReader: $$CookieReaderProvider"
++   }
++  ],
++  "edits": [
++   {
++    "file": "src/ng/http.js",
++    "find": "this.$get = ['$browser', '$httpBackend', '$$cookieReader', '$cacheFactory', '$rootScope', '$q', '$injector', '$sce',\n      function($browser, $httpBackend, $$cookieReader, $cacheFactory,",
++    "replace": "this.$get = ['$browser', '$httpBackend', '$cacheFactory', '$rootScope', '$q', '$injector', '$sce',\n      function($browser, $httpBackend, $cacheFactory,"
++   },
++   {
++    "file": "src/ng/http.js",
++    "find": "var xsrfValue = urlIsAllowedOrigin(config.url)\n            ? $$cookieReader()[config.xsrfCookieName || defaults.xsrfCookieName]\n            : undefined;",
++    "replace": "var xsrfValue;"
++   }
++  ],
++  "notes": "same-origin POSTs would no longer send X-XSRF-TOKEN from an XSRF-TOKEN cookie",
++  "specs": [
++   "test/ng/cookieReaderSpec.js"
++  ]
++ },
++ "component": {
++  "description": "$compileProvider.component() / module.component()",
++  "category": "$compile",
++  "edits": [
++   {
++    "file": "src/ng/compile.js",
++    "find": "this.component = function registerComponent(name, options) {",
++    "replace": "this.component = function() { throw new Error('[ng:excluded] component() is not available in this AngularJS build'); };\n  var excludedRegisterComponent = function registerComponent(name, options) {"
++   }
++  ],
++  "notes": "module.component(...) calls $compileProvider.component at config time -> throws if used"
++ },
++ "csp-interpreter": {
++  "description": "CSP (ng-csp / no-unsafe-eval) expression interpreter in $parse",
++  "category": "$parse",
++  "edits": [
++   {
++    "file": "src/ng/parse.js",
++    "find": "this.astCompiler = options.csp ? new ASTInterpreter($filter) :\n                                   new ASTCompiler($filter);",
++    "replace": "this.astCompiler = new ASTCompiler($filter);"
++   }
++  ],
++  "notes": "any page under a CSP without unsafe-eval (needs ng-csp) would fail to evaluate expressions"
++ },
++ "$anchorScroll": {
++  "description": "$anchorScroll service + ng-include autoscroll",
++  "category": "service",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "$anchorScroll: $AnchorScrollProvider"
++   }
++  ],
++  "edits": [
++   {
++    "file": "src/ng/directive/ngInclude.js",
++    "find": "['$templateRequest', '$anchorScroll', '$animate',\n                  function($templateRequest,   $anchorScroll,   $animate) {",
++    "replace": "['$templateRequest', '$animate',\n                  function($templateRequest,   $animate) {"
++   },
++   {
++    "file": "src/ng/directive/ngInclude.js",
++    "find": "$anchorScroll();",
++    "replace": ""
++   }
++  ],
++  "notes": "ng-include autoscroll attribute and $anchorScroll()/yOffset/$location hash scrolling lost",
++  "specs": [
++   "test/ng/anchorScrollSpec.js"
++  ]
++ },
++ "ngSrcHref": {
++  "description": "ng-src / ng-srcset / ng-href",
++  "category": "directive",
++  "edits": [
++   {
++    "file": "src/ng/directive/attrs.js",
++    "removeStatement": "forEach(['src', 'srcset', 'href']"
++   }
++  ],
++  "specs": [
++   "test/ng/directive/ngHrefSpec.js",
++   "test/ng/directive/ngSrcSpec.js",
++   "test/ng/directive/ngSrcsetSpec.js"
++  ]
++ },
++ "ngBooleanAttrs": {
++  "description": "ng-checked/ng-disabled/ng-readonly/ng-selected/ng-open/ng-multiple... boolean attr aliases",
++  "category": "directive",
++  "edits": [
++   {
++    "file": "src/ng/directive/attrs.js",
++    "removeStatement": "forEach(BOOLEAN_ATTR"
++   }
++  ],
++  "specs": [
++   "test/ng/directive/booleanAttrsSpec.js"
++  ]
++ },
++ "ngEventDirectives": {
++  "description": "ALL ng-click/ng-dblclick/ng-submit/ng-focus... event directives",
++  "category": "directive",
++  "edits": [
++   {
++    "file": "src/AngularPublic.js",
++    "find": "directive(ngAttributeAliasDirectives).\n        directive(ngEventDirectives);",
++    "replace": "directive(ngAttributeAliasDirectives);"
++   },
++   {
++    "file": "src/ng/directive/ngEventDirs.js",
++    "removeStatement": "forEach(\n  'click"
++   }
++  ],
++  "notes": "each additional event name costs only ~8 B gz; this row is the shared machinery",
++  "specs": [
++   "test/ng/directive/ngClickSpec.js",
++   "test/ng/directive/ngEventDirsSpec.js",
++   "test/ng/directive/ngKeySpec.js"
++  ]
++ },
++ "css-ngAnimate-anchors": {
++  "description": "CSS rules .ng-animate-shim / .ng-anchor (only used by the separate ngAnimate module)",
++  "category": "css",
++  "edits": [
++   {
++    "file": "css/angular.css",
++    "find": ".ng-animate-shim {\n  visibility:hidden;\n}\n\n.ng-anchor {\n  position:absolute;\n}\n",
++    "replace": ""
++   }
++  ]
++ },
++ "input.dates": {
++  "description": "all date-like input types (date, datetime-local, time, week, month)",
++  "category": "input type",
++  "includes": [
++   "input.date",
++   "input.datetime-local",
++   "input.time",
++   "input.week",
++   "input.month"
++  ]
++ },
++ "filters.all-but-core": {
++  "description": "currency+date+number+json+limitTo+filter filters (keeps orderBy/lowercase/uppercase)",
++  "category": "filter",
++  "includes": [
++   "filter.currency",
++   "filter.date",
++   "filter.number",
++   "filter.json",
++   "filter.limitTo",
++   "filter.filter"
++  ]
++ },
++ "compile.commentDirectives": {
++  "description": "restrict:\"M\" comment directives (<!-- directive: x -->)",
++  "category": "$compile",
++  "edits": [
++   {
++    "file": "src/ng/compile.js",
++    "find": "if (!commentDirectivesEnabled) break;\n          collectCommentDirectives(node, directives, attrs, maxPriority, ignoreDirective);",
++    "replace": "break;"
++   }
++  ],
++  "notes": "$compileProvider.commentDirectivesEnabled(true) becomes a no-op"
++ },
++ "compile.classDirectives": {
++  "description": "restrict:\"C\" class directives (class=\"my-dir: x\")",
++  "category": "$compile",
++  "edits": [
++   {
++    "file": "src/ng/compile.js",
++    "find": "if (!cssClassDirectivesEnabled) break;",
++    "replace": "break;"
++   }
++  ],
++  "notes": "suite uses 13 restrict:\"C\" directives (see inventory)"
++ },
++ "compile.ngPropNgOn": {
++  "description": "ng-prop-* / ng-on-* (addPropertyDirective / addEventDirective)",
++  "category": "$compile",
++  "edits": [
++   {
++    "file": "src/ng/compile.js",
++    "find": "if (isNgProp || isNgEvent) {",
++    "replace": "if (false) {"
++   }
++  ]
++ },
++ "$$animateJs": {
++  "description": "$$animateJs (core no-op JS animation service)",
++  "category": "service",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "$$animateJs: $$CoreAnimateJsProvider"
++   }
++  ]
++ },
++ "$$forceReflow": {
++  "description": "$$forceReflow",
++  "category": "service",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "$$forceReflow: $$ForceReflowProvider"
++   }
++  ]
++ },
++ "$$jqLite": {
++  "description": "$$jqLite service",
++  "category": "service",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "$$jqLite: $$jqLiteProvider"
++   }
++  ]
++ },
++ "$$Map": {
++  "description": "$$Map service",
++  "category": "service",
++  "lines": [
++   {
++    "file": "src/AngularPublic.js",
++    "match": "$$Map: $$MapProvider"
++   }
++  ]
++ },
++ "compile.multiElement": {
++  "description": "ng-repeat-start/-end style multi-element directives (-start/-end attrs)",
++  "category": "$compile",
++  "edits": [
++   {
++    "file": "src/ng/compile.js",
++    "find": "} else if ((multiElementMatch = nName.match(MULTI_ELEMENT_DIR_RE)) && directiveIsMultiElement(multiElementMatch[1])) {",
++    "replace": "} else if (false) {"
++   }
++  ],
++  "notes": "ng-repeat-start/-end stop working"
++ },
++ "ngEvents.unused-names": {
++  "description": "ng-dblclick, ng-mouseup, ng-mousemove, ng-keyup, ng-keypress, ng-copy, ng-cut, ng-paste",
++  "category": "directive",
++  "edits": [
++   {
++    "file": "src/ng/directive/ngEventDirs.js",
++    "find": "'click dblclick mousedown mouseup mouseover mouseout mousemove mouseenter mouseleave keydown keyup keypress submit focus blur copy cut paste'",
++    "replace": "'click mousedown mouseover mouseout mouseenter mouseleave keydown submit focus blur'"
++   }
++  ]
++ }
++}
+\ No newline at end of file
+diff -ruN a/scripts/measure-features.js b/scripts/measure-features.js
+--- a/scripts/measure-features.js	1970-01-01 10:00:00.000000000 +1000
++++ b/scripts/measure-features.js	2026-10-25 09:39:05.739191851 +1000
+@@ -0,0 +1,76 @@
++#!/usr/bin/env node
++'use strict';
++
++/**
++ * Per-feature cost table: builds the main bundle once with each feature of scripts/features.json excluded on its
++ * own (in parallel), and prints the min / gzip -9 / brotli-11 delta against the full build.
++ *
++ *   node scripts/measure-features.js [--profile=suite] [--json=out.json] [id ...]
++ *
++ * With --profile the deltas are measured against that profile (i.e. "what does this feature still cost once the
++ * profile is applied"); features already in the profile are skipped.
++ */
++var fs = require('fs');
++var os = require('os');
++var path = require('path');
++var zlib = require('zlib');
++var cp = require('child_process');
++
++var ROOT = path.resolve(__dirname, '..');
++var features = require('./profiles').loadFeatures();
++var args = process.argv.slice(2);
++var profileArg = (args.filter(function(a) { return /^--profile=/.test(a); })[0] || '').slice(10);
++var jsonOut = (args.filter(function(a) { return /^--json=/.test(a); })[0] || '').slice(7);
++var ids = args.filter(function(a) { return a.indexOf('--') !== 0; });
++var base = profileArg ? require('./profiles').loadProfile(profileArg).exclude : [];
++if (!ids.length) ids = Object.keys(features).filter(function(id) { return base.indexOf(id) === -1; });
++
++function sizes(file) {
++  var b = fs.readFileSync(file);
++  return {
++    raw: b.length,
++    gz: cp.execFileSync('gzip', ['-9', '-c'], {input: b, maxBuffer: 1e9}).length,
++    br: zlib.brotliCompressSync(b, {params: {
++      [zlib.constants.BROTLI_PARAM_QUALITY]: 11, [zlib.constants.BROTLI_PARAM_LGWIN]: 24,
++      [zlib.constants.BROTLI_PARAM_SIZE_HINT]: b.length}}).length
++  };
++}
++
++var tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ngfeat-'));
++function build(name, exclude) {
++  return new Promise(function(resolve) {
++    var out = path.join(tmp, name.replace(/[^\w.-]/g, '_'));
++    var p = cp.spawn('node', [path.join(__dirname, 'build-lib.js'), '--targets=angular', '--out-dir=' + out,
++      '--exclude=' + exclude.join(',')], {cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe']});
++    var err = '';
++    p.stderr.on('data', function(d) { err += d; });
++    p.on('close', function(code) {
++      if (code !== 0) return resolve({error: err.split('\n').filter(Boolean).slice(0, 3).join(' ')});
++      resolve(sizes(path.join(out, 'angular.min.js')));
++    });
++  });
++}
++
++(async function() {
++  var baseline = await build('__base', base);
++  var results = {};
++  var queue = ids.slice(), running = [];
++  async function worker() {
++    while (queue.length) {
++      var id = queue.shift();
++      var r = await build(id, base.concat([id]));
++      results[id] = r.error ? r : {raw: baseline.raw - r.raw, gz: baseline.gz - r.gz, br: baseline.br - r.br};
++    }
++  }
++  var n = Math.max(1, Math.min(8, os.cpus().length - 2));
++  for (var i = 0; i < n; i++) running.push(worker());
++  await Promise.all(running);
++  console.log('baseline: ' + baseline.raw + ' min / ' + baseline.gz + ' gz / ' + baseline.br + ' br');
++  console.log('feature'.padEnd(46) + 'min'.padStart(8) + 'gz'.padStart(8) + 'br'.padStart(8));
++  Object.keys(results).sort(function(a, b) { return (results[b].gz || -1) - (results[a].gz || -1); }).forEach(function(id) {
++    var r = results[id];
++    console.log(id.padEnd(46) + (r.error ? ('  ERROR ' + r.error) : String(r.raw).padStart(8) + String(r.gz).padStart(8) + String(r.br).padStart(8)));
++  });
++  if (jsonOut) fs.writeFileSync(jsonOut, JSON.stringify({baseline: baseline, results: results}, null, 1));
++  fs.rmSync(tmp, {recursive: true, force: true});
++})();
+diff -ruN a/scripts/profile-overlay.js b/scripts/profile-overlay.js
+--- a/scripts/profile-overlay.js	1970-01-01 10:00:00.000000000 +1000
++++ b/scripts/profile-overlay.js	2026-10-25 09:39:05.739276860 +1000
+@@ -0,0 +1,49 @@
++#!/usr/bin/env node
++'use strict';
++
++/**
++ * Materialises a profile as a source tree so the karma suite can be run against it:
++ *
++ *   node scripts/profile-overlay.js <outdir> --profile=suite     (or --exclude=a,b)
++ *   NG_ROOT=<outdir> npx karma start karma.conf.js              (harness in the scratchpad)
++ *
++ * <outdir> gets symlinks to everything in the repo except src/ and css/, which are copied with the profile
++ * applied (same edits as build-lib.js, files dropped by the profile are deleted). Specs for excluded features are
++ * expected to fail; every other spec must still pass.
++ */
++var fs = require('fs');
++var path = require('path');
++var profiles = require('./profiles');
++
++var ROOT = path.resolve(__dirname, '..');
++var out = path.resolve(process.argv[2]);
++var args = process.argv.slice(3);
++function arg(n) { var h = args.filter(function(a) { return a.indexOf('--' + n + '=') === 0; })[0]; return h ? h.slice(n.length + 3) : null; }
++var profile = arg('profile') ? profiles.loadProfile(arg('profile')) : {exclude: (arg('exclude') || '').split(',').filter(Boolean)};
++var P = profiles.create(profile);
++
++fs.rmSync(out, {recursive: true, force: true});
++fs.mkdirSync(out, {recursive: true});
++fs.readdirSync(ROOT).forEach(function(f) {
++  if (['src', 'css', 'build', 'test'].indexOf(f) !== -1) return;
++  fs.symlinkSync(path.join(ROOT, f), path.join(out, f));
++});
++function copy(rel) {
++  var from = path.join(ROOT, rel), to = path.join(out, rel);
++  fs.mkdirSync(path.dirname(to), {recursive: true});
++  if (fs.statSync(from).isDirectory()) {
++    fs.readdirSync(from).forEach(function(f) { copy(path.join(rel, f)); });
++  } else if (P.dropFiles[rel]) {
++    fs.writeFileSync(to, '');
++  } else if (P.dropSpecs[rel]) {
++    fs.writeFileSync(to, '');
++  } else if (/\.(js|css)$/.test(rel)) {
++    fs.writeFileSync(to, P.transform(rel, fs.readFileSync(from, 'utf8')));
++  } else {
++    fs.copyFileSync(from, to);
++  }
++}
++copy('src');
++copy('css');
++copy('test');
++console.log('profile overlay (' + P.exclude.length + ' features) written to ' + out);
+diff -ruN a/scripts/profiles/suite-extended.json b/scripts/profiles/suite-extended.json
+--- a/scripts/profiles/suite-extended.json	1970-01-01 10:00:00.000000000 +1000
++++ b/scripts/profiles/suite-extended.json	2026-10-25 09:39:05.739660315 +1000
+@@ -0,0 +1,42 @@
++{
++ "description": "suite + medium-confidence / needs-an-app-edit cuts: XSRF cookie header, $location (pronunciation-guide and si-studydesk-styles inject $locationProvider -> must drop that config), CSP interpreter (pages served under a CSP without unsafe-eval would break).",
++ "exclude": [
++  "ngBindTemplate",
++  "ngClassEvenOdd",
++  "ngNonBindable",
++  "ngPluralize",
++  "ngRef",
++  "ngSwitch",
++  "ngList",
++  "ngPattern",
++  "ngMinlength",
++  "ngEvents.unused-names",
++  "compile.ngPropNgOn",
++  "compile.commentDirectives",
++  "compile.multiElement",
++  "input.dates",
++  "input.range",
++  "input.email",
++  "input.url",
++  "filter.currency",
++  "filter.number",
++  "filter.json",
++  "filter.lowercase",
++  "filter.uppercase",
++  "jsonp",
++  "$httpParamSerializerJQLike",
++  "$anchorScroll",
++  "$$testability",
++  "$$animateJs",
++  "$$forceReflow",
++  "$$jqLite",
++  "$$Map",
++  "angular.errorHandlingConfig",
++  "angular.reloadWithDebugInfo",
++  "angular.UNSAFE_restoreLegacyJqLiteXHTMLReplacement",
++  "css-ngAnimate-anchors",
++  "xsrf",
++  "$location",
++  "csp-interpreter"
++ ]
++}
+\ No newline at end of file
+diff -ruN a/scripts/profiles/suite.json b/scripts/profiles/suite.json
+--- a/scripts/profiles/suite.json	1970-01-01 10:00:00.000000000 +1000
++++ b/scripts/profiles/suite.json	2026-10-25 09:39:05.739711924 +1000
+@@ -0,0 +1,39 @@
++{
++ "description": "HIGH-confidence cuts for the apps suite: features that the usage inventory (reports/inventory.json) found unused in all 46 live pages and in ui-grid 4.12.7. No app-side edit needed. Every removal is BREAKING for any page that does use the feature.",
++ "exclude": [
++  "ngBindTemplate",
++  "ngClassEvenOdd",
++  "ngNonBindable",
++  "ngPluralize",
++  "ngRef",
++  "ngSwitch",
++  "ngList",
++  "ngPattern",
++  "ngMinlength",
++  "ngEvents.unused-names",
++  "compile.ngPropNgOn",
++  "compile.commentDirectives",
++  "compile.multiElement",
++  "input.dates",
++  "input.range",
++  "input.email",
++  "input.url",
++  "filter.currency",
++  "filter.number",
++  "filter.json",
++  "filter.lowercase",
++  "filter.uppercase",
++  "jsonp",
++  "$httpParamSerializerJQLike",
++  "$anchorScroll",
++  "$$testability",
++  "$$animateJs",
++  "$$forceReflow",
++  "$$jqLite",
++  "$$Map",
++  "angular.errorHandlingConfig",
++  "angular.reloadWithDebugInfo",
++  "angular.UNSAFE_restoreLegacyJqLiteXHTMLReplacement",
++  "css-ngAnimate-anchors"
++ ]
++}
+\ No newline at end of file
+diff -ruN a/scripts/profiles.js b/scripts/profiles.js
+--- a/scripts/profiles.js	1970-01-01 10:00:00.000000000 +1000
++++ b/scripts/profiles.js	2026-10-25 09:39:05.739976601 +1000
+@@ -0,0 +1,191 @@
++'use strict';
++
++/**
++ * Build "profiles": exclude whole features from the shipped angular.js / angular.min.js.
++ *
++ *   node scripts/build-lib.js --profile=suite            (scripts/profiles/suite.json)
++ *   node scripts/build-lib.js --profile=/path/my.json
++ *
++ * A profile is just  { "description": "...", "exclude": ["featureId", ...] }.
++ * Feature ids are defined in scripts/features.json. A feature is a recipe made of
++ *
++ *   files : src files that are not concatenated at all
++ *   specs : spec files that only test this feature (blanked by profile-overlay.js when running the suite)
++ *   lines : [{file, match, count?}]  remove every line of `file` that contains the text `match`
++ *           (typically a registration line in AngularPublic.js / filter.js); the build fails if `match`
++ *           is not found, or does not occur exactly `count` times (default: at least once)
++ *   edits : [{file, find, replace}]  replace the first occurrence of the text `find` (build fails if missing)
++ *           [{file, removeFunction: "name"}]   delete the (single) function declaration `name`
++ *           [{file, removeProperty: "key"}]    delete the (single) object-literal property `key: ...` (and its comma)
++ *           [{file, removeStatement: "text"}]  delete the (single) top-level-or-nested statement whose source starts with `text`
++ *           [{file, removeConstructor: "Name"}]  delete function `Name` and all its top-level `Name.x = ...` / `Name.prototype... = ...` statements
++ *           These are located with acorn (so they survive reformatting) and fail if not exactly one match,
++ *           unless `count` is given.
++ *
++ * Most features are just the registration line: once nothing registers a directive/service/filter, the
++ * minifier tree-shakes the (now unreferenced) implementation. Because every recipe is anchored on literal text,
++ * a source change that moves the anchor fails the build loudly instead of silently shipping the feature.
++ *
++ * Excluding a feature is a BREAKING change for any page that uses it; see reports/build.md for the evidence list.
++ */
++
++var fs = require('fs');
++var path = require('path');
++var tools = require('./build-tools');
++
++var ROOT = path.resolve(__dirname, '..');
++
++function loadFeatures() {
++  return JSON.parse(fs.readFileSync(path.join(__dirname, 'features.json'), 'utf8'));
++}
++
++function loadProfile(nameOrPath) {
++  var file = /[\\/]/.test(nameOrPath) || /\.json$/.test(nameOrPath) ?
++    path.resolve(nameOrPath) : path.join(__dirname, 'profiles', nameOrPath + '.json');
++  var profile = JSON.parse(fs.readFileSync(file, 'utf8'));
++  profile.file = file;
++  return profile;
++}
++
++function countOccurrences(text, needle) {
++  var n = 0, i = -1;
++  while ((i = text.indexOf(needle, i + 1)) !== -1) n++;
++  return n;
++}
++
++function astRemove(text, edit, id, rel) {
++  var acorn = tools.require('acorn');
++  var walk = tools.require('acorn-walk');
++  var ast = acorn.parse(text, {ecmaVersion: 'latest', sourceType: 'script'});
++  var hits = [];
++  walk.full(ast, function(node) {
++    if (edit.removeFunction && node.type === 'FunctionDeclaration' && node.id.name === edit.removeFunction) hits.push(node);
++    if (edit.removeProperty && node.type === 'Property' && !node.computed &&
++        ((node.key.type === 'Identifier' && node.key.name === edit.removeProperty) ||
++         (node.key.type === 'Literal' && node.key.value === edit.removeProperty))) hits.push(node);
++    if (edit.removeConstructor) {
++      // `function Name(){}` plus every top-level `Name.x = ...` / `Name.prototype[.x] = ...` statement.
++      // (terser keeps an unreferenced constructor alive because of those assignments)
++      if (node.type === 'FunctionDeclaration' && node.id.name === edit.removeConstructor) hits.push(node);
++      if (node.type === 'ExpressionStatement' && node.expression.type === 'AssignmentExpression' &&
++          node.expression.left.type === 'MemberExpression') {
++        var root = node.expression.left;
++        while (root.type === 'MemberExpression') root = root.object;
++        if (root.type === 'Identifier' && root.name === edit.removeConstructor) hits.push(node);
++      }
++    }
++    if (edit.removeStatement && /Statement$|Declaration$/.test(node.type) && node.type !== 'BlockStatement' &&
++        text.slice(node.start, node.end).indexOf(edit.removeStatement) === 0) hits.push(node);
++  });
++  var what = edit.removeFunction || edit.removeProperty || edit.removeStatement || edit.removeConstructor;
++  var expected = edit.count || (edit.removeConstructor ? hits.length : 1);
++  if (edit.removeConstructor && !hits.some(function(n) { return n.type === 'FunctionDeclaration'; })) hits.length = 0;
++  if (hits.length !== expected) {
++    throw new Error('feature "' + id + '": ' + JSON.stringify(what) + ' matched ' + hits.length + ' node(s) in ' + rel + ', expected ' + expected);
++  }
++  hits.sort(function(a, b) { return b.start - a.start; });   // back to front
++  hits.forEach(function(node) {
++    var start = node.start, end = node.end;
++    if (node.type === 'Property') {
++      var m = /^\s*,/.exec(text.slice(end));
++      if (m) {
++        end += m[0].length;
++      } else {
++        var before = text.slice(0, start), c = /,\s*$/.exec(before);
++        if (c) start -= c[0].length;
++      }
++    }
++    // swallow the rest of the line if the node is alone on it
++    var lineStart = text.lastIndexOf('\n', start - 1) + 1, lineEnd = text.indexOf('\n', end);
++    if (lineEnd === -1) lineEnd = text.length;
++    if (!text.slice(lineStart, start).trim() && !text.slice(end, lineEnd).trim()) { start = lineStart; end = lineEnd + 1; }
++    text = text.slice(0, start) + text.slice(end);
++  });
++  return text;
++}
++
++/**
++ * Returns {dropFiles: Set, transform: function(relPath, text) -> text, applied: [ids]}
++ */
++exports.create = function(profile, features) {
++  features = features || loadFeatures();
++  var exclude = [];
++  (function expand(ids) {
++    ids.forEach(function(id) {
++      if (!features[id]) throw new Error('profile ' + (profile.file || '') + ': unknown feature "' + id + '" (see scripts/features.json)');
++      if (features[id].includes) expand(features[id].includes);
++      else if (exclude.indexOf(id) === -1) exclude.push(id);
++    });
++  })(profile.exclude || []);
++  var dropFiles = {};
++  var dropSpecs = {};
++  var lineRules = {};   // file -> [{match,count,id}]
++  var editRules = {};   // file -> [{find,replace,id}]
++
++  exclude.forEach(function(id) {
++    var f = features[id];
++    if (!f) throw new Error('profile ' + (profile.file || '') + ': unknown feature "' + id + '" (see scripts/features.json)');
++    (f.files || []).forEach(function(file) { dropFiles[file] = id; });
++    (f.specs || []).forEach(function(file) { dropSpecs[file] = id; });
++    (f.lines || []).forEach(function(r) { (lineRules[r.file] = lineRules[r.file] || []).push({match: r.match, count: r.count, id: id}); });
++    (f.edits || []).forEach(function(r) { (editRules[r.file] = editRules[r.file] || []).push(Object.assign({id: id}, r)); });
++  });
++
++  var touched = {};
++
++  function transform(rel, text) {
++    var lr = lineRules[rel], er = editRules[rel];
++    if (!lr && !er) return text;
++    (er || []).forEach(function(r) {
++      if (r.removeFunction || r.removeProperty || r.removeStatement || r.removeConstructor) { text = astRemove(text, r, r.id, rel); return; }
++      var n = countOccurrences(text, r.find);
++      if (n === 0) throw new Error('feature "' + r.id + '": edit anchor not found in ' + rel + ': ' + JSON.stringify(r.find.slice(0, 80)));
++      text = text.replace(r.find, function() { return r.replace; });
++    });
++    (lr || []).forEach(function(r) {
++      var lines = text.split('\n'), kept = [], removed = 0;
++      lines.forEach(function(line) {
++        if (line.indexOf(r.match) !== -1) removed++; else kept.push(line);
++      });
++      if (removed === 0 || (r.count && removed !== r.count)) {
++        throw new Error('feature "' + r.id + '": line anchor ' + JSON.stringify(r.match) + ' matched ' + removed +
++          ' line(s) in ' + rel + (r.count ? ' (expected ' + r.count + ')' : ''));
++      }
++      text = kept.join('\n');
++    });
++    touched[rel] = true;
++    return text;
++  }
++
++  return {
++    exclude: exclude,
++    dropFiles: dropFiles,
++    dropSpecs: dropSpecs,
++    transform: transform,
++    unusedFileDrops: function(allFiles) {
++      return Object.keys(dropFiles).filter(function(f) { return allFiles.indexOf(f) === -1; });
++    }
++  };
++};
++
++/**
++ * Names that are referenced but not declared in `profiledSrc` and were not already free in `baselineSrc`
++ * (i.e. dangling references created by cutting features out). Used as a build-time safety net.
++ */
++exports.danglingReferences = function(profiledSrc, baselineSrc) {
++  var acorn = tools.require('acorn');
++  var escope = tools.require('eslint-scope');
++  function free(src) {
++    var ast = acorn.parse(src, {ecmaVersion: 'latest', sourceType: 'script', ranges: true});
++    var out = {};
++    escope.analyze(ast, {ecmaVersion: 2020, sourceType: 'script'}).globalScope.through.forEach(function(ref) {
++      out[ref.identifier.name] = (out[ref.identifier.name] || 0) + 1;
++    });
++    return out;
++  }
++  var base = free(baselineSrc), prof = free(profiledSrc);
++  return Object.keys(prof).filter(function(n) { return !(n in base); });
++};
++
++exports.loadFeatures = loadFeatures;
++exports.loadProfile = loadProfile;

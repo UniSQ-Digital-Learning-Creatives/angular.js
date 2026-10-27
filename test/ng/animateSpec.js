@@ -50,6 +50,33 @@ describe('$animate', function() {
       expect(element.text()).toBe('21');
     }));
 
+    it('should insert multi-node content in order after the anchor', inject(function($animate) {
+      element.append(jqLite('<b>a</b><b>z</b>'));
+      var anchor = element.children().eq(0);
+      $animate.enter(jqLite('<i>1</i><i>2</i><i>3</i>'), element, anchor);
+      expect(element.text()).toBe('a123z');
+    }));
+
+    it('should insert multi-node content in order at the start of the parent', inject(function($animate) {
+      element.append(jqLite('<b>z</b>'));
+      $animate.enter(jqLite('<i>1</i><i>2</i>'), element);
+      expect(element.text()).toBe('12z');
+    }));
+
+    it('should leave content in place when moved directly after itself', inject(function($animate) {
+      element.append(jqLite('<b>a</b><i>1</i><i>2</i><b>z</b>'));
+      var anchor = element.children().eq(0);
+      var block = jqLite([element.children()[1], element.children()[2]]);
+      $animate.move(block, element, anchor);
+      expect(element.text()).toBe('a12z');
+    }));
+
+    it('should accept a raw DOM node', inject(function($animate) {
+      element.append(jqLite('<b>z</b>'));
+      $animate.enter(jqLite('<i>1</i>')[0], element);
+      expect(element.text()).toBe('1z');
+    }));
+
     it('should apply styles instantly to the element',
       inject(function($animate, $compile, $rootScope) {
 
@@ -81,6 +108,26 @@ describe('$animate', function() {
       expect($animate.setClass(element, 'on', 'off')).toBeAPromise();
       expect($animate.leave(element)).toBeAPromise();
     }));
+
+    it('should resolve the returned runner asynchronously, even when it is used late',
+      inject(function($animate, $$rAF, $rootScope) {
+        var element = jqLite('<div></div>');
+        var log = [];
+        var runner = $animate.addClass(element, 'on');
+        runner.done(function(status) { log.push('done:' + status); });
+        runner.then(function() { log.push('then'); });
+        expect(log).toEqual([]);
+
+        $$rAF.flush();
+        $rootScope.$digest();
+        expect(log).toEqual(['done:undefined', 'then']);
+
+        // A consumer that only shows up later still gets a completed runner.
+        $animate.removeClass(element, 'on').done(function(status) { log.push('late:' + status); });
+        $$rAF.flush();
+        expect(log).toEqual(['done:undefined', 'then', 'late:undefined']);
+      })
+    );
 
     it('should provide the `enabled` and `cancel` methods', inject(function($animate) {
       expect($animate.enabled()).toBeUndefined();

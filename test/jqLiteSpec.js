@@ -60,8 +60,8 @@ describe('jqLite', function() {
   });
 
 
-  it('should be jqLite when jqLiteMode is on, otherwise jQuery', function() {
-    expect(jqLite).toBe(_jqLiteMode ? JQLite : _jQuery);
+  it('should always be jqLite, even when jQuery is loaded', function() {
+    expect(jqLite).toBe(JQLite);
   });
 
 
@@ -278,6 +278,32 @@ describe('jqLite', function() {
   });
 
   describe('inheritedData', function() {
+
+    it('should find data stored under a camelCased or a dashed name from a dashed or a camelCased one', function() {
+      var parent = jqLite('<div><p><span></span></p></div>');
+      var span = parent.find('span');
+      parent.data('my-data', 'dashed');
+      parent.data('otherData', 'camel');
+
+      expect(span.inheritedData('myData')).toBe('dashed');
+      expect(span.inheritedData('my-data')).toBe('dashed');
+      expect(span.inheritedData('other-data')).toBe('camel');
+      expect(span.inheritedData('nothing')).toBeUndefined();
+
+      dealoc(parent);
+    });
+
+    it('should return the data of the closest element that has it', function() {
+      var parent = jqLite('<div><span></span></div>');
+      var span = parent.find('span');
+      parent.data('a', 'parentA');
+      span.data('a', 'childA');
+
+      expect(span.inheritedData('a')).toBe('childA');
+      expect(parent.inheritedData('a')).toBe('parentA');
+
+      dealoc(parent);
+    });
 
     it('should retrieve data attached to the current element', function() {
       var element = jqLite('<i>foo</i>');
@@ -765,6 +791,58 @@ describe('jqLite', function() {
 
         browserTrigger(span);
         expect(log).toEqual('click;');
+      });
+
+      it('should clean the data and handlers of deeply nested descendants', function() {
+        var div = jqLite('<div><p><i><b>text</b></i></p><u></u></div>'),
+            b = div.find('b'),
+            u = div.find('u'),
+            log = '';
+
+        b.data('name', 'deep');
+        b.on('$destroy', function() { log += 'b;'; });
+        u.on('$destroy', function() { log += 'u;'; });
+        div.remove();
+
+        expect(log).toEqual('b;u;');
+        expect(b.data('name')).toBeUndefined();
+        expect(jqLite._data(b[0]).events).toBeUndefined();
+      });
+
+      it('should not call the old listeners of a removed element that is reused', function() {
+        var div = jqLite('<div></div>'),
+            log = '';
+
+        div.on('click', function() { log += 'old;'; });
+        div.on('custom', function() { log += 'oldCustom;'; });
+        div.remove();
+
+        // an element that has been removed is not expected to react to its old listeners...
+        browserTrigger(div, 'click');
+        div.triggerHandler('custom');
+        expect(log).toEqual('');
+
+        // ...and listeners added after the removal must be the only ones that run
+        div.on('click', function() { log += 'new;'; });
+        browserTrigger(div, 'click');
+        expect(log).toEqual('new;');
+      });
+
+      it('should fire $destroy on all the nodes before removing the data of any of them', function() {
+        var div = jqLite('<div><span>text</span></div>'),
+            span = div.find('span'),
+            log = [];
+
+        div.data('name', 'div');
+        span.data('name', 'span');
+        div.on('$destroy', function() { log.push('div sees ' + span.data('name')); });
+        span.on('$destroy', function() { log.push('span sees ' + div.data('name')); });
+
+        jqLite.cleanData([div[0], span[0]]);
+
+        expect(log).toEqual(['div sees span', 'span sees div']);
+        expect(div.data('name')).toBeUndefined();
+        expect(span.data('name')).toBeUndefined();
       });
 
       it('should work if the descendants of the element change while it\'s being removed', function() {
@@ -2489,6 +2567,14 @@ describe('jqLite', function() {
 
 
   describe('find', function() {
+    it('should find descendants by CSS selector', function() {
+      var root = jqLite('<div><p class="a"><b class="x">1</b></p><i class="x">2</i></div>');
+      expect(root.find('.x').length).toBe(2);
+      expect(root.find('p > .x').length).toBe(1);
+      expect(root.find('.nope').length).toBe(0);
+      expect(root.find('b, i').length).toBe(2);
+    });
+
     it('should find child by name', function() {
       var root = jqLite('<div><div>text</div></div>');
       var innerDiv = root.find('div');

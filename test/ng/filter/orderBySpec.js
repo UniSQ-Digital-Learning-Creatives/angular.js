@@ -25,6 +25,47 @@ describe('Filter: orderBy', function() {
     });
 
 
+    it('should keep the holes of a sparse array at the end', function() {
+      var sparse = ['b'];
+      sparse[2] = 'a';
+      var sorted = orderBy(sparse);
+      expect(sorted.length).toBe(3);
+      expect(sorted[0]).toBe('a');
+      expect(sorted[1]).toBe('b');
+      expect(2 in sorted).toBe(false);
+    });
+
+
+    it('should sort the same with and without an explicit default-equivalent comparator', function() {
+      var items = [
+        {v: 'b'}, {v: 'B'}, {v: 2}, {v: null}, {v: undefined}, {v: NaN}, {v: true}, {v: 'a'},
+        {v: new Date(5)}, {v: new Date(1)}, {v: {}}, {v: {toString: function() { return 'Z'; }}},
+        {v: 1}, {v: 'A'}, {v: false}, {v: {}}
+      ];
+      function defaultLike(v1, v2) {
+        var type1 = v1.type, type2 = v2.type;
+        if (type1 !== type2) {
+          return (type1 === 'undefined') ? 1 : (type2 === 'undefined') ? -1 :
+            (type1 === 'null') ? 1 : (type2 === 'null') ? -1 : (type1 < type2) ? -1 : 1;
+        }
+        var value1 = v1.value, value2 = v2.value;
+        if (type1 === 'string') {
+          value1 = value1.toLowerCase();
+          value2 = value2.toLowerCase();
+        } else if (type1 === 'object') {
+          if (isObject(value1)) value1 = v1.index;
+          if (isObject(value2)) value2 = v2.index;
+        }
+        return value1 === value2 ? 0 : value1 < value2 ? -1 : 1;
+      }
+      forEach([['v'], ['-v'], ['v', '-v'], [function(x) { return x.v; }]], function(predicate) {
+        forEach([false, true], function(reverse) {
+          expect(orderBy(items, predicate, reverse)).toEqual(orderBy(items, predicate, reverse, defaultLike));
+        });
+      });
+    });
+
+
     it('should return sorted array if predicate is not provided', function() {
       expect(orderBy([2, 1, 3])).toEqual([1, 2, 3]);
 

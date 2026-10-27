@@ -289,4 +289,31 @@ describe('$templateRequest', function() {
       expect(spy).toHaveBeenCalledOnceWith('{{text}}!!');
     });
   });
+
+  describe('templates that were already loaded', function() {
+    it('should be answered from the cache without going through $http (and its interceptors) again',
+        function() {
+      var intercepted = 0;
+      module(function($httpProvider) {
+        $httpProvider.interceptors.push(function() {
+          return {request: function(config) { intercepted++; return config; }};
+        });
+      });
+      inject(function($rootScope, $templateRequest, $templateCache, $httpBackend) {
+        var results = [];
+        $httpBackend.expectGET('tpl.html').respond('<p>hi</p>');
+        $templateRequest('tpl.html').then(function(html) { results.push(html); });
+        $httpBackend.flush();
+        expect(intercepted).toBe(1);
+
+        $templateRequest('tpl.html').then(function(html) { results.push(html); });
+        expect($templateRequest.totalPendingRequests).toBe(0);
+        $rootScope.$digest();
+
+        expect(results).toEqual(['<p>hi</p>', '<p>hi</p>']);
+        expect(intercepted).toBe(1);
+        $httpBackend.verifyNoOutstandingRequest();
+      });
+    });
+  });
 });

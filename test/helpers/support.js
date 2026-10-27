@@ -1,5 +1,10 @@
 'use strict';
 
+// IE support was removed from the library. Specs that still branch on it see `undefined`,
+// so their IE-only paths stay skipped.
+// eslint-disable-next-line no-unused-vars
+var msie;
+
 var supportTests = {
   classes: '/^class\\b/.test((class C {}).toString())',
   fatArrows: 'a => a',

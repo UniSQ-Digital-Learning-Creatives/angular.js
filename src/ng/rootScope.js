@@ -82,16 +82,37 @@ function $RootScopeProvider() {
     return TTL;
   };
 
+  /**
+   * The scope tree bookkeeping (watchers, tree links, suspended flag, watcher count) lives in a
+   * DigestNode per scope instead of on the scope itself, and the digest walks the nodes.
+   *
+   * Scopes inherit from their parent through the prototype chain, so every scope that has children
+   * of its own (an ng-repeat row with an ng-if in it, say) has a hidden class of its own, and any
+   * property load on "a scope" is megamorphic at every site that sees more than a few of them.
+   * Nodes all share one hidden class, so the digest's per-scope loads stay monomorphic. Keeping
+   * this state off the scope also means a new scope has fewer properties to initialise.
+   * `scope.$$watchers`, `$$childHead`, `$$watchersCount` etc. are still readable, they are
+   * accessors on Scope.prototype that go through the node.
+   */
+  function DigestNode(scope) {
+    this.scope = scope;
+    this.watchers = null;
+    this.count = 0;
+    this.suspended = false;
+    this.parent = null;
+    this.childHead = null;
+    this.childTail = null;
+    this.nextSibling = null;
+    this.prevSibling = null;
+    this.listeners = {};
+    this.listenerCount = {};
+    this.ChildScope = null; // the class non-isolate children are created from, see $new
+  }
+
   function createChildScopeClass(parent) {
     function ChildScope() {
-      this.$$watchers = this.$$nextSibling =
-          this.$$childHead = this.$$childTail = null;
-      this.$$listeners = {};
-      this.$$listenerCount = {};
-      this.$$watchersCount = 0;
+      this.$$digestNode = new DigestNode(this);
       this.$id = nextUid();
-      this.$$ChildScope = null;
-      this.$$suspended = false;
     }
     ChildScope.prototype = parent;
     return ChildScope;
@@ -105,6 +126,9 @@ function $RootScopeProvider() {
     }
 
     function cleanUpScope($scope) {
+      var node = $scope.$$digestNode;
+      node.parent = node.nextSibling = node.prevSibling = node.childHead = node.childTail =
+          node.watchers = null;
 
       // The code below works around IE9 and V8's memory leaks
       //
@@ -113,8 +137,7 @@ function $RootScopeProvider() {
       // - https://github.com/angular/angular.js/issues/6794#issuecomment-38648909
       // - https://github.com/angular/angular.js/issues/1313#issuecomment-10378451
 
-      $scope.$parent = $scope.$$nextSibling = $scope.$$prevSibling = $scope.$$childHead =
-          $scope.$$childTail = $scope.$root = $scope.$$watchers = null;
+      $scope.$parent = $scope.$root = null;
     }
 
     // Shared prototype methods for $emit/$broadcast event objects, so dispatching an event
@@ -185,16 +208,11 @@ function $RootScopeProvider() {
      *
      */
     function Scope() {
+      this.$$digestNode = new DigestNode(this);
       this.$id = nextUid();
-      this.$$phase = this.$parent = this.$$watchers =
-                     this.$$nextSibling = this.$$prevSibling =
-                     this.$$childHead = this.$$childTail = null;
+      this.$$phase = this.$parent = null;
       this.$root = this;
       this.$$destroyed = false;
-      this.$$suspended = false;
-      this.$$listeners = {};
-      this.$$listenerCount = {};
-      this.$$watchersCount = 0;
       this.$$isolateBindings = null;
     }
 
@@ -264,18 +282,22 @@ function $RootScopeProvider() {
         } else {
           // Only create a child scope class if somebody asks for one,
           // but cache it to allow the VM to optimize lookups.
-          if (!this.$$ChildScope) {
-            this.$$ChildScope = createChildScopeClass(this);
+          var thisNode = this.$$digestNode;
+          if (!thisNode.ChildScope) {
+            thisNode.ChildScope = createChildScopeClass(this);
           }
-          child = new this.$$ChildScope();
+          child = new thisNode.ChildScope();
         }
         child.$parent = parent;
-        child.$$prevSibling = parent.$$childTail;
-        if (parent.$$childHead) {
-          parent.$$childTail.$$nextSibling = child;
-          parent.$$childTail = child;
+        var childNode = child.$$digestNode,
+            parentNode = parent.$$digestNode;
+        childNode.parent = parentNode;
+        childNode.prevSibling = parentNode.childTail;
+        if (parentNode.childHead) {
+          parentNode.childTail.nextSibling = childNode;
+          parentNode.childTail = childNode;
         } else {
-          parent.$$childHead = parent.$$childTail = child;
+          parentNode.childHead = parentNode.childTail = childNode;
         }
 
         // When the new scope is not isolated or we inherit from `this`, and
@@ -414,7 +436,8 @@ function $RootScopeProvider() {
           return get.$$watchDelegate(this, fn, objectEquality, get, watchExp);
         }
         var scope = this,
-            array = scope.$$watchers,
+            node = scope.$$digestNode,
+            array = node.watchers,
             watcher = {
               fn: fn,
               last: initWatchVal,
@@ -426,7 +449,7 @@ function $RootScopeProvider() {
         lastDirtyWatch = null;
 
         if (!array) {
-          array = scope.$$watchers = [];
+          array = node.watchers = [];
           array.$$digestWatchIndex = -1;
         }
         // we use unshift since we use a while loop in $digest for speed.
@@ -609,6 +632,31 @@ function $RootScopeProvider() {
         // only track veryOldValue if the listener is asking for it
         var trackVeryOldValue = (listener.length > 1);
         var changeDetected = 0;
+        var parsedObj = $parse(obj);
+        if (isString(obj) && parsedObj.inputs && /[^|]\|[^|]/.test(obj)) {
+          // EXPERIMENTAL (breaking): a pipeline of stateless filters over a collection is only
+          // re-evaluated when one of its inputs changed shallowly (identity, or for arrays and
+          // objects length and items), not on every digest. Deep changes inside the items are not seen.
+          var memoInputs = parsedObj.inputs, memoLast = new Array(memoInputs.length), memoSnap = new Array(memoInputs.length), memoResult, memoInit = false;
+          obj = function memoizedPipeline(scope) {
+            var changed = !memoInit, i, v, snap;
+            for (i = 0; i < memoInputs.length; i++) {
+              v = memoInputs[i](scope);
+              if (v !== memoLast[i]) changed = true;
+              else if (isObject(v)) {
+                snap = memoSnap[i];
+                if (isArray(v)) {
+                  if (!snap || snap.length !== v.length) changed = true;
+                  else for (var j = 0; j < v.length; j++) if (snap[j] !== v[j]) { changed = true; break; }
+                } else changed = true;
+              }
+              memoLast[i] = v;
+              if (changed && isArray(v)) memoSnap[i] = v.slice();
+            }
+            if (changed) { memoInit = true; memoResult = parsedObj(scope); }
+            return memoResult;
+          };
+        }
         var changeDetector = $parse(obj, $watchCollectionInterceptor);
         var internalArray = [];
         var internalObject = {};
@@ -785,7 +833,7 @@ function $RootScopeProvider() {
         var watch, value, last, fn, get,
             watchers,
             dirty, ttl = TTL,
-            next, current, target = asyncQueue.length ? $rootScope : this,
+            next, current, target = (asyncQueue.length ? $rootScope : this).$$digestNode,
             watchLog = [],
             logIdx, asyncTask;
 
@@ -823,7 +871,7 @@ function $RootScopeProvider() {
 
           traverseScopesLoop:
           do { // "traverse the scopes" loop
-            if ((watchers = !current.$$suspended && current.$$watchers)) {
+            if ((watchers = !current.suspended && current.watchers)) {
               // process our watches
               watchers.$$digestWatchIndex = watchers.length;
               while (watchers.$$digestWatchIndex--) {
@@ -833,7 +881,7 @@ function $RootScopeProvider() {
                   // circuit it with === operator, only when === fails do we use .equals
                   if (watch) {
                     get = watch.get;
-                    if ((value = get(current)) !== (last = watch.last) &&
+                    if ((value = get(current.scope)) !== (last = watch.last) &&
                         !(watch.eq
                             ? equals(value, last)
                             : (isNumberNaN(value) && isNumberNaN(last)))) {
@@ -841,7 +889,7 @@ function $RootScopeProvider() {
                       lastDirtyWatch = watch;
                       watch.last = watch.eq ? copy(value, null) : value;
                       fn = watch.fn;
-                      fn(value, ((last === initWatchVal) ? value : last), current);
+                      fn(value, ((last === initWatchVal) ? value : last), current.scope);
                       if (ttl < 5) {
                         logIdx = 4 - ttl;
                         if (!watchLog[logIdx]) watchLog[logIdx] = [];
@@ -869,10 +917,10 @@ function $RootScopeProvider() {
             // this piece should be kept in sync with the traversal in $broadcast
             // (though it differs due to having the extra check for $$suspended and does not
             // check $$listenerCount)
-            if (!(next = ((!current.$$suspended && current.$$watchersCount && current.$$childHead) ||
-                (current !== target && current.$$nextSibling)))) {
-              while (current !== target && !(next = current.$$nextSibling)) {
-                current = current.$parent;
+            if (!(next = ((!current.suspended && current.count && current.childHead) ||
+                (current !== target && current.nextSibling)))) {
+              while (current !== target && !(next = current.nextSibling)) {
+                current = current.parent;
               }
             }
           } while ((current = next));
@@ -950,7 +998,7 @@ function $RootScopeProvider() {
        *   initiated by a component that lives on a suspended scope.
        */
       $suspend: function() {
-        this.$$suspended = true;
+        this.$$digestNode.suspended = true;
       },
 
       /**
@@ -979,7 +1027,7 @@ function $RootScopeProvider() {
        * @returns true if the current scope has been suspended.
        */
       $isSuspended: function() {
-        return this.$$suspended;
+        return this.$$digestNode.suspended;
       },
 
       /**
@@ -993,7 +1041,7 @@ function $RootScopeProvider() {
        * See {@link $rootScope.Scope#$suspend} for information about the dangers of using this approach.
        */
       $resume: function() {
-        this.$$suspended = false;
+        this.$$digestNode.suspended = false;
       },
 
       /**
@@ -1043,25 +1091,26 @@ function $RootScopeProvider() {
           $browser.$$applicationDestroyed();
         }
 
-        incrementWatchersCount(this, -this.$$watchersCount);
-        for (var eventName in this.$$listenerCount) {
-          decrementListenerCount(this, this.$$listenerCount[eventName], eventName);
+        var node = this.$$digestNode;
+        incrementWatchersCount(this, -node.count);
+        for (var eventName in node.listenerCount) {
+          decrementListenerCount(this, node.listenerCount[eventName], eventName);
         }
 
         // sever all the references to parent scopes (after this cleanup, the current scope should
         // not be retained by any of our references and should be eligible for garbage collection)
-        if (parent && parent.$$childHead === this) parent.$$childHead = this.$$nextSibling;
-        if (parent && parent.$$childTail === this) parent.$$childTail = this.$$prevSibling;
-        if (this.$$prevSibling) this.$$prevSibling.$$nextSibling = this.$$nextSibling;
-        if (this.$$nextSibling) this.$$nextSibling.$$prevSibling = this.$$prevSibling;
+        if (parent && parent.$$digestNode.childHead === node) parent.$$digestNode.childHead = node.nextSibling;
+        if (parent && parent.$$digestNode.childTail === node) parent.$$digestNode.childTail = node.prevSibling;
+        if (node.prevSibling) node.prevSibling.nextSibling = node.nextSibling;
+        if (node.nextSibling) node.nextSibling.prevSibling = node.prevSibling;
 
         // Disable listeners, watchers and apply/digest methods
         this.$destroy = this.$digest = this.$apply = this.$evalAsync = this.$applyAsync = noop;
         this.$on = this.$watch = this.$watchGroup = function() { return noop; };
-        this.$$listeners = {};
+        node.listeners = {};
 
         // Disconnect the next sibling to prevent `cleanUpScope` destroying those too
-        this.$$nextSibling = null;
+        node.nextSibling = null;
         cleanUpScope(this);
       },
 
@@ -1268,19 +1317,20 @@ function $RootScopeProvider() {
        * @returns {function()} Returns a deregistration function for this listener.
        */
       $on: function(name, listener) {
-        var namedListeners = this.$$listeners[name];
+        var node = this.$$digestNode,
+            namedListeners = node.listeners[name];
         if (!namedListeners) {
-          this.$$listeners[name] = namedListeners = [];
+          node.listeners[name] = namedListeners = [];
         }
         namedListeners.push(listener);
 
-        var current = this;
+        var current = node;
         do {
-          if (!current.$$listenerCount[name]) {
-            current.$$listenerCount[name] = 0;
+          if (!current.listenerCount[name]) {
+            current.listenerCount[name] = 0;
           }
-          current.$$listenerCount[name]++;
-        } while ((current = current.$parent));
+          current.listenerCount[name]++;
+        } while ((current = current.parent));
 
         var self = this;
         return function() {
@@ -1330,13 +1380,14 @@ function $RootScopeProvider() {
         // (it is incremented upwards from the registering scope to $rootScope). $emit walks
         // upwards toward $rootScope, so the only listener-count check that is always safe here
         // is on $rootScope itself, which aggregates listeners for the entire scope tree.
-        if (!scope.$root.$$listenerCount[name]) return event;
+        if (!scope.$root.$$digestNode.listenerCount[name]) return event;
 
         listenerArgs = concat([event], arguments, 1);
 
+        var node = scope.$$digestNode;
         do {
-          namedListeners = scope.$$listeners[name] || empty;
-          event.currentScope = scope;
+          namedListeners = node.listeners[name] || empty;
+          event.currentScope = node.scope;
           for (i = 0, length = namedListeners.length; i < length; i++) {
 
             // if listeners were deregistered, defragment the array
@@ -1358,8 +1409,7 @@ function $RootScopeProvider() {
             break;
           }
           //traverse upwards
-          scope = scope.$parent;
-        } while (scope);
+        } while ((node = node.parent));
 
         event.currentScope = null;
 
@@ -1389,20 +1439,20 @@ function $RootScopeProvider() {
        * @return {Object} Event object, see {@link ng.$rootScope.Scope#$on}
        */
       $broadcast: function(name, args) {
-        var target = this,
+        var target = this.$$digestNode,
             current = target,
             next = target,
-            event = new ScopeBroadcastEvent(name, target);
+            event = new ScopeBroadcastEvent(name, this);
 
-        if (!target.$$listenerCount[name]) return event;
+        if (!target.listenerCount[name]) return event;
 
         var listenerArgs = concat([event], arguments, 1),
             listeners, i, length;
 
         //down while you can, then up and next sibling or up and next sibling until back at root
         while ((current = next)) {
-          event.currentScope = current;
-          listeners = current.$$listeners[name] || [];
+          event.currentScope = current.scope;
+          listeners = current.listeners[name] || [];
           for (i = 0, length = listeners.length; i < length; i++) {
             // if listeners were deregistered, defragment the array
             if (!listeners[i]) {
@@ -1424,10 +1474,10 @@ function $RootScopeProvider() {
           // this piece should be kept in sync with the traversal in $digest
           // (though it differs due to having the extra check for $$listenerCount and
           // does not check $$suspended)
-          if (!(next = ((current.$$listenerCount[name] && current.$$childHead) ||
-              (current !== target && current.$$nextSibling)))) {
-            while (current !== target && !(next = current.$$nextSibling)) {
-              current = current.$parent;
+          if (!(next = ((current.listenerCount[name] && current.childHead) ||
+              (current !== target && current.nextSibling)))) {
+            while (current !== target && !(next = current.nextSibling)) {
+              current = current.parent;
             }
           }
         }
@@ -1436,6 +1486,18 @@ function $RootScopeProvider() {
         return event;
       }
     };
+
+    // The state that lives on the digest node stays reachable under its old names
+    // (`$$watchers`, `$$watchersCount`, `$$suspended`, and the `$$childHead`... tree links).
+    defineNodeProperty('$$watchers', 'watchers');
+    defineNodeProperty('$$watchersCount', 'count');
+    defineNodeProperty('$$listeners', 'listeners');
+    defineNodeProperty('$$listenerCount', 'listenerCount');
+    defineNodeProperty('$$suspended', 'suspended');
+    defineNodeLink('$$childHead', 'childHead');
+    defineNodeLink('$$childTail', 'childTail');
+    defineNodeLink('$$nextSibling', 'nextSibling');
+    defineNodeLink('$$prevSibling', 'prevSibling');
 
     var $rootScope = new Scope();
 
@@ -1448,6 +1510,23 @@ function $RootScopeProvider() {
 
     return $rootScope;
 
+
+    function defineNodeProperty(name, field) {
+      Object.defineProperty(Scope.prototype, name, {
+        get: function() { return this.$$digestNode[field]; },
+        set: function(value) { this.$$digestNode[field] = value; }
+      });
+    }
+
+    function defineNodeLink(name, field) {
+      Object.defineProperty(Scope.prototype, name, {
+        get: function() {
+          var linked = this.$$digestNode[field];
+          return linked ? linked.scope : null;
+        },
+        set: function(scope) { this.$$digestNode[field] = scope ? scope.$$digestNode : null; }
+      });
+    }
 
     function beginPhase(phase) {
       if ($rootScope.$$phase) {
@@ -1462,19 +1541,21 @@ function $RootScopeProvider() {
     }
 
     function incrementWatchersCount(current, count) {
+      var node = current.$$digestNode;
       do {
-        current.$$watchersCount += count;
-      } while ((current = current.$parent));
+        node.count += count;
+      } while ((node = node.parent));
     }
 
     function decrementListenerCount(current, count, name) {
+      var node = current.$$digestNode;
       do {
-        current.$$listenerCount[name] -= count;
+        node.listenerCount[name] -= count;
 
-        if (current.$$listenerCount[name] === 0) {
-          delete current.$$listenerCount[name];
+        if (node.listenerCount[name] === 0) {
+          delete node.listenerCount[name];
         }
-      } while ((current = current.$parent));
+      } while ((node = node.parent));
     }
 
     /**

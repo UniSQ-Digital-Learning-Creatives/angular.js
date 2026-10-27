@@ -1,0 +1,1184 @@
+{
+ "ngPluralize": {
+  "description": "ng-pluralize directive",
+  "category": "directive",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "ngPluralize: ngPluralizeDirective"
+   }
+  ],
+  "specs": [
+   "test/ng/directive/ngPluralizeSpec.js"
+  ]
+ },
+ "ngList": {
+  "description": "ng-list directive",
+  "category": "directive",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "ngList: ngListDirective"
+   }
+  ],
+  "specs": [
+   "test/ng/directive/ngListSpec.js"
+  ]
+ },
+ "ngRef": {
+  "description": "ng-ref / ng-ref-read",
+  "category": "directive",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "ngRef: ngRefDirective"
+   }
+  ],
+  "specs": [
+   "test/ng/directive/ngRefSpec.js"
+  ]
+ },
+ "ngNonBindable": {
+  "description": "ng-non-bindable",
+  "category": "directive",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "ngNonBindable: ngNonBindableDirective"
+   }
+  ],
+  "specs": [
+   "test/ng/directive/ngNonBindableSpec.js"
+  ]
+ },
+ "ngSwitch": {
+  "description": "ng-switch / when / default",
+  "category": "directive",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "ngSwitch: ngSwitchDirective"
+   },
+   {
+    "file": "src/AngularPublic.js",
+    "match": "ngSwitchWhen: ngSwitchWhenDirective"
+   },
+   {
+    "file": "src/AngularPublic.js",
+    "match": "ngSwitchDefault: ngSwitchDefaultDirective"
+   }
+  ],
+  "specs": [
+   "test/ng/directive/ngSwitchSpec.js"
+  ]
+ },
+ "ngStyle": {
+  "description": "ng-style",
+  "category": "directive",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "ngStyle: ngStyleDirective"
+   }
+  ],
+  "specs": [
+   "test/ng/directive/ngStyleSpec.js"
+  ]
+ },
+ "ngInit": {
+  "description": "ng-init",
+  "category": "directive",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "ngInit: ngInitDirective"
+   }
+  ],
+  "specs": [
+   "test/ng/directive/ngInitSpec.js"
+  ]
+ },
+ "ngBindTemplate": {
+  "description": "ng-bind-template",
+  "category": "directive",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "ngBindTemplate: ngBindTemplateDirective"
+   }
+  ]
+ },
+ "ngBindHtml": {
+  "description": "ng-bind-html",
+  "category": "directive",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "ngBindHtml: ngBindHtmlDirective"
+   }
+  ]
+ },
+ "ngClassEvenOdd": {
+  "description": "ng-class-even / ng-class-odd",
+  "category": "directive",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "ngClassEven: ngClassEvenDirective"
+   },
+   {
+    "file": "src/AngularPublic.js",
+    "match": "ngClassOdd: ngClassOddDirective"
+   }
+  ]
+ },
+ "ngCloak": {
+  "description": "ng-cloak directive (the CSS rule stays)",
+  "category": "directive",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "ngCloak: ngCloakDirective"
+   }
+  ],
+  "specs": [
+   "test/ng/directive/ngCloakSpec.js"
+  ]
+ },
+ "ngController": {
+  "description": "ng-controller directive",
+  "category": "directive",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "ngController: ngControllerDirective"
+   }
+  ],
+  "notes": "ngController attr; $controller service stays (needed by $compile controllers)",
+  "specs": [
+   "test/ng/directive/ngControllerSpec.js"
+  ]
+ },
+ "ngShowHide": {
+  "description": "ng-show / ng-hide",
+  "category": "directive",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "ngHide: ngHideDirective"
+   },
+   {
+    "file": "src/AngularPublic.js",
+    "match": "ngShow: ngShowDirective"
+   }
+  ],
+  "specs": [
+   "test/ng/directive/ngShowHideSpec.js"
+  ]
+ },
+ "ngIf": {
+  "description": "ng-if",
+  "category": "directive",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "ngIf: ngIfDirective"
+   }
+  ],
+  "specs": [
+   "test/ng/directive/ngIfSpec.js"
+  ]
+ },
+ "ngInclude": {
+  "description": "ng-include (+ fill-content)",
+  "category": "directive",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "ngInclude: ngIncludeDirective"
+   },
+   {
+    "file": "src/AngularPublic.js",
+    "match": "ngInclude: ngIncludeFillContentDirective"
+   }
+  ],
+  "specs": [
+   "test/ng/directive/ngIncludeSpec.js"
+  ]
+ },
+ "ngRepeat": {
+  "description": "ng-repeat",
+  "category": "directive",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "ngRepeat: ngRepeatDirective"
+   }
+  ],
+  "specs": [
+   "test/ng/directive/ngRepeatSpec.js"
+  ]
+ },
+ "ngTransclude": {
+  "description": "ng-transclude",
+  "category": "directive",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "ngTransclude: ngTranscludeDirective"
+   }
+  ]
+ },
+ "ngChange": {
+  "description": "ng-change",
+  "category": "directive",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "ngChange: ngChangeDirective"
+   }
+  ],
+  "specs": [
+   "test/ng/directive/ngChangeSpec.js"
+  ]
+ },
+ "ngValue": {
+  "description": "ng-value",
+  "category": "directive",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "ngValue: ngValueDirective"
+   }
+  ]
+ },
+ "ngModelOptions": {
+  "description": "ng-model-options",
+  "category": "directive",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "ngModelOptions: ngModelOptionsDirective"
+   }
+  ],
+  "notes": "ngModel reads ngModelOptions via require: ? so stays functional",
+  "specs": [
+   "test/ng/directive/ngModelOptionsSpec.js"
+  ]
+ },
+ "ngPattern": {
+  "description": "pattern / ng-pattern validator",
+  "category": "directive",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "pattern: patternDirective"
+   },
+   {
+    "file": "src/AngularPublic.js",
+    "match": "ngPattern: patternDirective"
+   }
+  ]
+ },
+ "ngRequired": {
+  "description": "required / ng-required validator",
+  "category": "directive",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "required: requiredDirective"
+   },
+   {
+    "file": "src/AngularPublic.js",
+    "match": "ngRequired: requiredDirective"
+   }
+  ]
+ },
+ "ngMinlength": {
+  "description": "minlength / ng-minlength validator",
+  "category": "directive",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "minlength: minlengthDirective"
+   },
+   {
+    "file": "src/AngularPublic.js",
+    "match": "ngMinlength: minlengthDirective"
+   }
+  ]
+ },
+ "ngMaxlength": {
+  "description": "maxlength / ng-maxlength validator",
+  "category": "directive",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "maxlength: maxlengthDirective"
+   },
+   {
+    "file": "src/AngularPublic.js",
+    "match": "ngMaxlength: maxlengthDirective"
+   }
+  ]
+ },
+ "form": {
+  "description": "form / ng-form directive + FormController",
+  "category": "directive",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "form: formDirective"
+   },
+   {
+    "file": "src/AngularPublic.js",
+    "match": "ngForm: ngFormDirective"
+   }
+  ],
+  "edits": [
+   {
+    "file": "src/ng/directive/form.js",
+    "removeStatement": "addSetValidityMethod({\n  clazz: FormController"
+   },
+   {
+    "file": "src/ng/directive/form.js",
+    "removeConstructor": "FormController"
+   },
+   {
+    "file": "src/ng/directive/form.js",
+    "removeStatement": "var formDirectiveFactory"
+   },
+   {
+    "file": "src/ng/directive/form.js",
+    "removeStatement": "var formDirective = "
+   },
+   {
+    "file": "src/ng/directive/form.js",
+    "removeStatement": "var ngFormDirective = "
+   }
+  ],
+  "notes": "ngModel requires ^?form (optional); form validity (ng-submit gating, $valid) lost",
+  "specs": [
+   "test/ng/directive/formSpec.js"
+  ]
+ },
+ "select": {
+  "description": "select directive (non-ngOptions) + option directive",
+  "category": "directive",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "select: selectDirective"
+   },
+   {
+    "file": "src/AngularPublic.js",
+    "match": "option: optionDirective"
+   }
+  ],
+  "notes": "ngOptions also needs selectDirective/optionDirective; remove select only if no <select ng-model>",
+  "specs": [
+   "test/ng/directive/selectSpec.js"
+  ]
+ },
+ "ngOptions": {
+  "description": "ng-options",
+  "category": "directive",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "ngOptions: ngOptionsDirective"
+   }
+  ],
+  "specs": [
+   "test/ng/directive/ngOptionsSpec.js"
+  ]
+ },
+ "script": {
+  "description": "<script type=text/ng-template> template-cache directive",
+  "category": "directive",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "script: scriptDirective"
+   }
+  ],
+  "specs": [
+   "test/ng/directive/scriptSpec.js"
+  ]
+ },
+ "htmlAnchor": {
+  "description": "<a href=\"\"> preventDefault directive",
+  "category": "directive",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "a: htmlAnchorDirective"
+   }
+  ],
+  "specs": [
+   "test/ng/directive/aSpec.js"
+  ]
+ },
+ "hiddenInputCache": {
+  "description": "hidden-input browser-cache workaround directive",
+  "category": "directive",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "input: hiddenInputBrowserCacheDirective"
+   }
+  ]
+ },
+ "$cacheFactory": {
+  "description": "$cacheFactory (also backs $templateCache and $http cache)",
+  "category": "service",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "$cacheFactory: $CacheFactoryProvider"
+   },
+   {
+    "file": "src/AngularPublic.js",
+    "match": "$templateCache: $TemplateCacheProvider"
+   }
+  ],
+  "notes": "removes $templateCache too: breaks $templateRequest/ngInclude/templateUrl",
+  "specs": [
+   "test/ng/cacheFactorySpec.js"
+  ]
+ },
+ "$interval": {
+  "description": "$interval + $$intervalFactory",
+  "category": "service",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "$interval: $IntervalProvider"
+   },
+   {
+    "file": "src/AngularPublic.js",
+    "match": "$$intervalFactory: $$IntervalFactoryProvider"
+   }
+  ],
+  "notes": "$$intervalFactory also used by $timeout? (measured)",
+  "specs": [
+   "test/ng/intervalSpec.js"
+  ]
+ },
+ "$log": {
+  "description": "$log service",
+  "category": "service",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "$log: $LogProvider"
+   }
+  ],
+  "notes": "default $exceptionHandler uses $log",
+  "specs": [
+   "test/ng/logSpec.js"
+  ]
+ },
+ "$httpParamSerializerJQLike": {
+  "description": "$httpParamSerializerJQLike",
+  "category": "service",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "$httpParamSerializerJQLike: $HttpParamSerializerJQLikeProvider"
+   }
+  ]
+ },
+ "$$testability": {
+  "description": "$$testability + angular.getTestability",
+  "category": "service",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "$$testability: $$TestabilityProvider"
+   },
+   {
+    "file": "src/AngularPublic.js",
+    "match": "'getTestability': getTestability"
+   }
+  ],
+  "specs": [
+   "test/ng/testabilitySpec.js"
+  ]
+ },
+ "$location": {
+  "description": "$location service",
+  "category": "service",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "$location: $LocationProvider"
+   }
+  ],
+  "edits": [
+   {
+    "file": "src/ng/location.js",
+    "removeStatement": "forEach([LocationHashbangInHtml5Url"
+   }
+  ],
+  "notes": "$anchorScroll, ngRoute etc. inject it; $browser URL machinery stays",
+  "specs": [
+   "test/ng/locationSpec.js"
+  ]
+ },
+ "$$isDocumentHidden": {
+  "description": "$$isDocumentHidden (used by $$rAF/animate)",
+  "category": "service",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "$$isDocumentHidden: $$IsDocumentHiddenProvider"
+   }
+  ]
+ },
+ "$animateCss": {
+  "description": "$animateCss (core, CSS-less stub)",
+  "category": "service",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "$animateCss: $CoreAnimateCssProvider"
+   }
+  ],
+  "specs": [
+   "test/ng/animateCssSpec.js"
+  ]
+ },
+ "$sce": {
+  "description": "$sce/$sceDelegate (needed by interpolate, ngInclude, ngBindHtml)",
+  "category": "service",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "$sce: $SceProvider"
+   },
+   {
+    "file": "src/AngularPublic.js",
+    "match": "$sceDelegate: $SceDelegateProvider"
+   }
+  ]
+ },
+ "angular.reloadWithDebugInfo": {
+  "description": "angular.reloadWithDebugInfo()",
+  "category": "angular.*",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "'reloadWithDebugInfo': reloadWithDebugInfo,"
+   }
+  ]
+ },
+ "angular.UNSAFE_restoreLegacyJqLiteXHTMLReplacement": {
+  "description": "UNSAFE_restoreLegacyJqLiteXHTMLReplacement",
+  "category": "angular.*",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "'UNSAFE_restoreLegacyJqLiteXHTMLReplacement': UNSAFE_restoreLegacyJqLiteXHTMLReplacement,"
+   }
+  ]
+ },
+ "angular.errorHandlingConfig": {
+  "description": "angular.errorHandlingConfig (no-op in production builds: minErr is replaced)",
+  "category": "angular.*",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "'errorHandlingConfig': errorHandlingConfig,"
+   }
+  ]
+ },
+ "angular.merge": {
+  "description": "angular.merge",
+  "category": "angular.*",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "'merge': merge,"
+   }
+  ]
+ },
+ "angular.bind": {
+  "description": "angular.bind",
+  "category": "angular.*",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "'bind': bind,"
+   }
+  ]
+ },
+ "angular.isDate": {
+  "description": "angular.isDate",
+  "category": "angular.*",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "'isDate': isDate,"
+   }
+  ]
+ },
+ "angular.equals": {
+  "description": "angular.equals",
+  "category": "angular.*",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "'equals': equals,"
+   }
+  ]
+ },
+ "angular.copy": {
+  "description": "angular.copy",
+  "category": "angular.*",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "'copy': copy,"
+   }
+  ]
+ },
+ "angular.fromJson": {
+  "description": "angular.fromJson",
+  "category": "angular.*",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "'fromJson': fromJson,"
+   }
+  ]
+ },
+ "angular.injector": {
+  "description": "angular.injector (standalone injector)",
+  "category": "angular.*",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "'injector': createInjector,"
+   }
+  ]
+ },
+ "angular.callbacks": {
+  "description": "angular.callbacks (JSONP counter)",
+  "category": "angular.*",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "'callbacks': {$$counter: 0},"
+   }
+  ]
+ },
+ "filter.currency": {
+  "description": "currency filter",
+  "category": "filter",
+  "lines": [
+   {
+    "file": "src/ng/filter.js",
+    "match": "register('currency', "
+   }
+  ]
+ },
+ "filter.date": {
+  "description": "date filter",
+  "category": "filter",
+  "lines": [
+   {
+    "file": "src/ng/filter.js",
+    "match": "register('date', "
+   }
+  ]
+ },
+ "filter.filter": {
+  "description": "filter filter",
+  "category": "filter",
+  "lines": [
+   {
+    "file": "src/ng/filter.js",
+    "match": "register('filter', "
+   }
+  ],
+  "specs": [
+   "test/ng/filter/filterSpec.js"
+  ]
+ },
+ "filter.json": {
+  "description": "json filter",
+  "category": "filter",
+  "lines": [
+   {
+    "file": "src/ng/filter.js",
+    "match": "register('json', "
+   }
+  ]
+ },
+ "filter.limitTo": {
+  "description": "limitTo filter",
+  "category": "filter",
+  "lines": [
+   {
+    "file": "src/ng/filter.js",
+    "match": "register('limitTo', "
+   }
+  ],
+  "specs": [
+   "test/ng/filter/limitToSpec.js"
+  ]
+ },
+ "filter.lowercase": {
+  "description": "lowercase filter",
+  "category": "filter",
+  "lines": [
+   {
+    "file": "src/ng/filter.js",
+    "match": "register('lowercase', "
+   }
+  ]
+ },
+ "filter.number": {
+  "description": "number filter",
+  "category": "filter",
+  "lines": [
+   {
+    "file": "src/ng/filter.js",
+    "match": "register('number', "
+   }
+  ]
+ },
+ "filter.orderBy": {
+  "description": "orderBy filter",
+  "category": "filter",
+  "lines": [
+   {
+    "file": "src/ng/filter.js",
+    "match": "register('orderBy', "
+   }
+  ],
+  "specs": [
+   "test/ng/filter/orderBySpec.js"
+  ]
+ },
+ "filter.uppercase": {
+  "description": "uppercase filter",
+  "category": "filter",
+  "lines": [
+   {
+    "file": "src/ng/filter.js",
+    "match": "register('uppercase', "
+   }
+  ]
+ },
+ "input.date": {
+  "description": "<input type=date>",
+  "category": "input type",
+  "edits": [
+   {
+    "file": "src/ng/directive/input.js",
+    "find": "  'date': createDateInputType('date', DATE_REGEXP,\n         createDateParser(DATE_REGEXP, ['yyyy', 'MM', 'dd']),\n         'yyyy-MM-dd'),\n",
+    "replace": ""
+   }
+  ]
+ },
+ "input.datetime-local": {
+  "description": "<input type=datetime-local>",
+  "category": "input type",
+  "edits": [
+   {
+    "file": "src/ng/directive/input.js",
+    "find": "  'datetime-local': createDateInputType('datetimelocal', DATETIMELOCAL_REGEXP,\n      createDateParser(DATETIMELOCAL_REGEXP, ['yyyy', 'MM', 'dd', 'HH', 'mm', 'ss', 'sss']),\n      'yyyy-MM-ddTHH:mm:ss.sss'),\n",
+    "replace": ""
+   }
+  ]
+ },
+ "input.time": {
+  "description": "<input type=time>",
+  "category": "input type",
+  "edits": [
+   {
+    "file": "src/ng/directive/input.js",
+    "find": "  'time': createDateInputType('time', TIME_REGEXP,\n      createDateParser(TIME_REGEXP, ['HH', 'mm', 'ss', 'sss']),\n     'HH:mm:ss.sss'),\n",
+    "replace": ""
+   }
+  ]
+ },
+ "input.week": {
+  "description": "<input type=week>",
+  "category": "input type",
+  "edits": [
+   {
+    "file": "src/ng/directive/input.js",
+    "find": "  'week': createDateInputType('week', WEEK_REGEXP, weekParser, 'yyyy-Www'),\n",
+    "replace": ""
+   }
+  ]
+ },
+ "input.month": {
+  "description": "<input type=month>",
+  "category": "input type",
+  "edits": [
+   {
+    "file": "src/ng/directive/input.js",
+    "find": "  'month': createDateInputType('month', MONTH_REGEXP,\n     createDateParser(MONTH_REGEXP, ['yyyy', 'MM']),\n     'yyyy-MM'),\n",
+    "replace": ""
+   }
+  ]
+ },
+ "input.number": {
+  "description": "<input type=number>",
+  "category": "input type",
+  "edits": [
+   {
+    "file": "src/ng/directive/input.js",
+    "find": "  'number': numberInputType,\n",
+    "replace": ""
+   }
+  ]
+ },
+ "input.url": {
+  "description": "<input type=url>",
+  "category": "input type",
+  "edits": [
+   {
+    "file": "src/ng/directive/input.js",
+    "find": "  'url': urlInputType,\n",
+    "replace": ""
+   }
+  ]
+ },
+ "input.email": {
+  "description": "<input type=email>",
+  "category": "input type",
+  "edits": [
+   {
+    "file": "src/ng/directive/input.js",
+    "find": "  'email': emailInputType,\n",
+    "replace": ""
+   }
+  ]
+ },
+ "input.radio": {
+  "description": "<input type=radio>",
+  "category": "input type",
+  "edits": [
+   {
+    "file": "src/ng/directive/input.js",
+    "find": "  'radio': radioInputType,\n",
+    "replace": ""
+   }
+  ]
+ },
+ "input.range": {
+  "description": "<input type=range>",
+  "category": "input type",
+  "edits": [
+   {
+    "file": "src/ng/directive/input.js",
+    "find": "  'range': rangeInputType,\n",
+    "replace": ""
+   }
+  ]
+ },
+ "input.checkbox": {
+  "description": "<input type=checkbox>",
+  "category": "input type",
+  "edits": [
+   {
+    "file": "src/ng/directive/input.js",
+    "find": "  'checkbox': checkboxInputType,\n",
+    "replace": ""
+   }
+  ]
+ },
+ "jsonp": {
+  "description": "JSONP: $http.jsonp, JSONP url sanitising, <script> transport in $httpBackend, $jsonpCallbacks",
+  "category": "$http",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "$jsonpCallbacks: $jsonpCallbacksProvider"
+   }
+  ],
+  "edits": [
+   {
+    "file": "src/ng/http.js",
+    "find": "isJsonp = lowercase(config.method) === 'jsonp',",
+    "replace": "isJsonp = false,"
+   },
+   {
+    "file": "src/ng/http.js",
+    "find": "createShortMethods('get', 'delete', 'head', 'jsonp');",
+    "replace": "createShortMethods('get', 'delete', 'head');"
+   },
+   {
+    "file": "src/ng/httpBackend.js",
+    "find": "this.$get = ['$browser', '$jsonpCallbacks', '$document', '$xhrFactory', function($browser, $jsonpCallbacks, $document, $xhrFactory) {\n    return createHttpBackend($browser, $xhrFactory, $browser.defer, $jsonpCallbacks, $document[0]);",
+    "replace": "this.$get = ['$browser', '$document', '$xhrFactory', function($browser, $document, $xhrFactory) {\n    return createHttpBackend($browser, $xhrFactory, $browser.defer, null, $document[0]);"
+   },
+   {
+    "file": "src/ng/httpBackend.js",
+    "find": "if (lowercase(method) === 'jsonp') {",
+    "replace": "if (false) {"
+   }
+  ],
+  "notes": "$http({method:\"JSONP\"}) / $http.jsonp() would then POST/GET as a normal XHR with method JSONP (invalid)",
+  "specs": [
+   "test/ng/jsonpCallbacksSpec.js"
+  ]
+ },
+ "xsrf": {
+  "description": "XSRF header injection ($$cookieReader + xsrfTrustedOrigins check) in $http",
+  "category": "$http",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "$$cookieReader: $$CookieReaderProvider"
+   }
+  ],
+  "edits": [
+   {
+    "file": "src/ng/http.js",
+    "find": "this.$get = ['$browser', '$httpBackend', '$$cookieReader', '$cacheFactory', '$rootScope', '$q', '$injector', '$sce',\n      function($browser, $httpBackend, $$cookieReader, $cacheFactory,",
+    "replace": "this.$get = ['$browser', '$httpBackend', '$cacheFactory', '$rootScope', '$q', '$injector', '$sce',\n      function($browser, $httpBackend, $cacheFactory,"
+   },
+   {
+    "file": "src/ng/http.js",
+    "find": "var xsrfValue = urlIsAllowedOrigin(config.url)\n            ? $$cookieReader()[config.xsrfCookieName || defaults.xsrfCookieName]\n            : undefined;",
+    "replace": "var xsrfValue;"
+   }
+  ],
+  "notes": "same-origin POSTs would no longer send X-XSRF-TOKEN from an XSRF-TOKEN cookie",
+  "specs": [
+   "test/ng/cookieReaderSpec.js"
+  ]
+ },
+ "component": {
+  "description": "$compileProvider.component() / module.component()",
+  "category": "$compile",
+  "edits": [
+   {
+    "file": "src/ng/compile.js",
+    "find": "this.component = function registerComponent(name, options) {",
+    "replace": "this.component = function() { throw new Error('[ng:excluded] component() is not available in this AngularJS build'); };\n  var excludedRegisterComponent = function registerComponent(name, options) {"
+   }
+  ],
+  "notes": "module.component(...) calls $compileProvider.component at config time -> throws if used"
+ },
+ "csp-interpreter": {
+  "description": "CSP (ng-csp / no-unsafe-eval) expression interpreter in $parse",
+  "category": "$parse",
+  "edits": [
+   {
+    "file": "src/ng/parse.js",
+    "find": "this.astCompiler = options.csp ? new ASTInterpreter($filter) :\n                                   new ASTCompiler($filter);",
+    "replace": "this.astCompiler = new ASTCompiler($filter);"
+   }
+  ],
+  "notes": "any page under a CSP without unsafe-eval (needs ng-csp) would fail to evaluate expressions"
+ },
+ "$anchorScroll": {
+  "description": "$anchorScroll service + ng-include autoscroll",
+  "category": "service",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "$anchorScroll: $AnchorScrollProvider"
+   }
+  ],
+  "edits": [
+   {
+    "file": "src/ng/directive/ngInclude.js",
+    "find": "$injector.get('$anchorScroll')();",
+    "replace": ""
+   }
+  ],
+  "notes": "ng-include autoscroll attribute and $anchorScroll()/yOffset/$location hash scrolling lost",
+  "specs": [
+   "test/ng/anchorScrollSpec.js"
+  ]
+ },
+ "ngSrcHref": {
+  "description": "ng-src / ng-srcset / ng-href",
+  "category": "directive",
+  "edits": [
+   {
+    "file": "src/ng/directive/attrs.js",
+    "removeStatement": "forEach(['src', 'srcset', 'href']"
+   }
+  ],
+  "specs": [
+   "test/ng/directive/ngHrefSpec.js",
+   "test/ng/directive/ngSrcSpec.js",
+   "test/ng/directive/ngSrcsetSpec.js"
+  ]
+ },
+ "ngBooleanAttrs": {
+  "description": "ng-checked/ng-disabled/ng-readonly/ng-selected/ng-open/ng-multiple... boolean attr aliases",
+  "category": "directive",
+  "edits": [
+   {
+    "file": "src/ng/directive/attrs.js",
+    "removeStatement": "forEach(BOOLEAN_ATTR"
+   }
+  ],
+  "specs": [
+   "test/ng/directive/booleanAttrsSpec.js"
+  ]
+ },
+ "ngEventDirectives": {
+  "description": "ALL ng-click/ng-dblclick/ng-submit/ng-focus... event directives",
+  "category": "directive",
+  "edits": [
+   {
+    "file": "src/AngularPublic.js",
+    "find": "directive(ngAttributeAliasDirectives).\n        directive(ngEventDirectives);",
+    "replace": "directive(ngAttributeAliasDirectives);"
+   },
+   {
+    "file": "src/ng/directive/ngEventDirs.js",
+    "removeStatement": "forEach(\n  'click"
+   }
+  ],
+  "notes": "each additional event name costs only ~8 B gz; this row is the shared machinery",
+  "specs": [
+   "test/ng/directive/ngClickSpec.js",
+   "test/ng/directive/ngEventDirsSpec.js",
+   "test/ng/directive/ngKeySpec.js"
+  ]
+ },
+ "css-ngAnimate-anchors": {
+  "description": "CSS rules .ng-animate-shim / .ng-anchor (only used by the separate ngAnimate module)",
+  "category": "css",
+  "edits": [
+   {
+    "file": "css/angular.css",
+    "find": ".ng-animate-shim {\n  visibility:hidden;\n}\n\n.ng-anchor {\n  position:absolute;\n}\n",
+    "replace": ""
+   }
+  ]
+ },
+ "input.dates": {
+  "description": "all date-like input types (date, datetime-local, time, week, month)",
+  "category": "input type",
+  "includes": [
+   "input.date",
+   "input.datetime-local",
+   "input.time",
+   "input.week",
+   "input.month"
+  ]
+ },
+ "filters.all-but-core": {
+  "description": "currency+date+number+json+limitTo+filter filters (keeps orderBy/lowercase/uppercase)",
+  "category": "filter",
+  "includes": [
+   "filter.currency",
+   "filter.date",
+   "filter.number",
+   "filter.json",
+   "filter.limitTo",
+   "filter.filter"
+  ]
+ },
+ "compile.commentDirectives": {
+  "description": "restrict:\"M\" comment directives (<!-- directive: x -->)",
+  "category": "$compile",
+  "edits": [
+   {
+    "file": "src/ng/compile.js",
+    "find": "if (!commentDirectivesEnabled) break;\n          collectCommentDirectives(node, directives, attrs, maxPriority, ignoreDirective);",
+    "replace": "break;"
+   }
+  ],
+  "notes": "$compileProvider.commentDirectivesEnabled(true) becomes a no-op"
+ },
+ "compile.classDirectives": {
+  "description": "restrict:\"C\" class directives (class=\"my-dir: x\")",
+  "category": "$compile",
+  "edits": [
+   {
+    "file": "src/ng/compile.js",
+    "find": "if (!cssClassDirectivesEnabled) break;",
+    "replace": "break;"
+   }
+  ],
+  "notes": "suite uses 13 restrict:\"C\" directives (see inventory)"
+ },
+ "compile.ngPropNgOn": {
+  "description": "ng-prop-* / ng-on-* (addPropertyDirective / addEventDirective)",
+  "category": "$compile",
+  "edits": [
+   {
+    "file": "src/ng/compile.js",
+    "find": "if (isNgProp || isNgEvent) {",
+    "replace": "if (false) {"
+   }
+  ]
+ },
+ "$$animateJs": {
+  "description": "$$animateJs (core no-op JS animation service)",
+  "category": "service",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "$$animateJs: $$CoreAnimateJsProvider"
+   }
+  ]
+ },
+ "$$forceReflow": {
+  "description": "$$forceReflow",
+  "category": "service",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "$$forceReflow: $$ForceReflowProvider"
+   }
+  ]
+ },
+ "$$jqLite": {
+  "description": "$$jqLite service",
+  "category": "service",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "$$jqLite: $$jqLiteProvider"
+   }
+  ]
+ },
+ "$$Map": {
+  "description": "$$Map service",
+  "category": "service",
+  "lines": [
+   {
+    "file": "src/AngularPublic.js",
+    "match": "$$Map: $$MapProvider"
+   }
+  ]
+ },
+ "compile.multiElement": {
+  "description": "ng-repeat-start/-end style multi-element directives (-start/-end attrs)",
+  "category": "$compile",
+  "edits": [
+   {
+    "file": "src/ng/compile.js",
+    "find": "} else if ((multiElementMatch = nName.match(MULTI_ELEMENT_DIR_RE)) && directiveIsMultiElement(multiElementMatch[1])) {",
+    "replace": "} else if (false) {"
+   }
+  ],
+  "notes": "ng-repeat-start/-end stop working"
+ },
+ "ngEvents.unused-names": {
+  "description": "ng-dblclick, ng-mouseup, ng-mousemove, ng-keyup, ng-keypress, ng-copy, ng-cut, ng-paste",
+  "category": "directive",
+  "edits": [
+   {
+    "file": "src/ng/directive/ngEventDirs.js",
+    "find": "'click dblclick mousedown mouseup mouseover mouseout mousemove mouseenter mouseleave keydown keyup keypress submit focus blur copy cut paste'",
+    "replace": "'click mousedown mouseover mouseout mouseenter mouseleave keydown submit focus blur'"
+   }
+  ]
+ }
+}

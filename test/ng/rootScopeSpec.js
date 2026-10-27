@@ -3093,6 +3093,293 @@ describe('Scope', function() {
     }));
   });
 
+  describe('scope tree bookkeeping', function() {
+    // The digest and the events walk a mirror of the tree (see DigestNode in rootScope.js), these
+    // check that it stays in step with what `$$childHead` & co. report, and that traversal copes
+    // with the tree changing under it.
+
+    function chain(scope) {
+      var names = [];
+      for (var c = scope.$$childHead; c; c = c.$$nextSibling) names.push(c.name);
+      return names.join(',');
+    }
+
+    function reverseChain(scope) {
+      var names = [];
+      for (var c = scope.$$childTail; c; c = c.$$prevSibling) names.push(c.name);
+      return names.join(',');
+    }
+
+    function named(parent, name, isolate) {
+      var child = parent.$new(isolate);
+      child.name = name;
+      return child;
+    }
+
+    it('should report the tree links through $$childHead, $$childTail, $$nextSibling and $$prevSibling', inject(function($rootScope) {
+      var a = named($rootScope, 'a'), b = named($rootScope, 'b'), c = named($rootScope, 'c', true);
+      var a1 = named(a, 'a1'), a2 = named(a, 'a2');
+
+      expect($rootScope.$$childHead).toBe(a);
+      expect($rootScope.$$childTail).toBe(c);
+      expect(a.$$prevSibling).toBe(null);
+      expect(a.$$nextSibling).toBe(b);
+      expect(c.$$nextSibling).toBe(null);
+      expect(c.$$prevSibling).toBe(b);
+      expect(a.$$childHead).toBe(a1);
+      expect(a.$$childTail).toBe(a2);
+      expect(b.$$childHead).toBe(null);
+      expect(b.$$childTail).toBe(null);
+      expect(chain($rootScope)).toBe('a,b,c');
+      expect(reverseChain($rootScope)).toBe('c,b,a');
+    }));
+
+    it('should keep the links in step when scopes are destroyed from the head, middle and tail', inject(function($rootScope) {
+      var s = [];
+      for (var i = 0; i < 6; i++) s.push(named($rootScope, 's' + i));
+
+      s[2].$destroy();
+      expect(chain($rootScope)).toBe('s0,s1,s3,s4,s5');
+      expect(reverseChain($rootScope)).toBe('s5,s4,s3,s1,s0');
+
+      s[0].$destroy();
+      expect(chain($rootScope)).toBe('s1,s3,s4,s5');
+      expect($rootScope.$$childHead).toBe(s[1]);
+      expect(s[1].$$prevSibling).toBe(null);
+
+      s[5].$destroy();
+      expect(chain($rootScope)).toBe('s1,s3,s4');
+      expect($rootScope.$$childTail).toBe(s[4]);
+      expect(s[4].$$nextSibling).toBe(null);
+
+      var late = named($rootScope, 'late');
+      expect(chain($rootScope)).toBe('s1,s3,s4,late');
+      expect(reverseChain($rootScope)).toBe('late,s4,s3,s1');
+
+      s[1].$destroy(); s[3].$destroy(); s[4].$destroy(); late.$destroy();
+      expect($rootScope.$$childHead).toBe(null);
+      expect($rootScope.$$childTail).toBe(null);
+
+      var again = named($rootScope, 'again');
+      expect($rootScope.$$childHead).toBe(again);
+      expect($rootScope.$$childTail).toBe(again);
+    }));
+
+    it('should disconnect a destroyed scope completely', inject(function($rootScope) {
+      var parent = named($rootScope, 'p'), child1 = named(parent, 'c1'), child2 = named(parent, 'c2'),
+          grandChild = named(child1, 'g');
+      child1.$watch('x', noop);
+      child1.$destroy();
+
+      [child1].forEach(function($scope) {
+        expect($scope.$$nextSibling).toBe(null);
+        expect($scope.$$prevSibling).toBe(null);
+        expect($scope.$$childHead).toBe(null);
+        expect($scope.$$childTail).toBe(null);
+        expect($scope.$$watchers).toBe(null);
+        expect($scope.$parent).toBe(null);
+        expect($scope.$root).toBe(null);
+      });
+      expect(chain(parent)).toBe('c2');
+      expect(child2.$$prevSibling).toBe(null);
+      expect(grandChild.$$destroyed).toBe(true);
+    }));
+
+    it('should keep $$watchers, $$listeners, $$listenerCount and $$watchersCount readable', inject(function($rootScope) {
+      var child = $rootScope.$new();
+      expect(child.$$watchers).toBe(null);
+      expect(child.$$watchersCount).toBe(0);
+      expect(child.$$listeners).toEqual({});
+      expect(child.$$listenerCount).toEqual({});
+
+      var unwatch = child.$watch('a', noop);
+      child.$watch('b', noop);
+      child.$on('ev', noop);
+      expect(child.$$watchers.length).toBe(2);
+      expect($rootScope.$$watchersCount).toBe(2);
+      expect(child.$$listeners.ev.length).toBe(1);
+      expect($rootScope.$$listenerCount).toEqual({ev: 1});
+
+      unwatch();
+      expect(child.$$watchers.length).toBe(1);
+      expect($rootScope.$$watchersCount).toBe(1);
+    }));
+
+    it('should report isolate scopes through the tree links too', inject(function($rootScope) {
+      var iso = named($rootScope, 'iso', true);
+      var inner = named(iso, 'inner');
+      expect($rootScope.$$childHead).toBe(iso);
+      expect(iso.$$childHead).toBe(inner);
+      expect(inner.$parent).toBe(iso);
+      inner.$watch('a', noop);
+      expect($rootScope.$$watchersCount).toBe(1);
+      expect(iso.$$watchersCount).toBe(1);
+    }));
+
+    it('should digest in depth-first, watcher addition order', inject(function($rootScope) {
+      var log = [];
+      function watch(scope, tag) { scope.$watch(function() { log.push(tag); }); }
+      var a = named($rootScope, 'a'), b = named($rootScope, 'b'), a1 = named(a, 'a1'), a2 = named(a, 'a2'), b1 = named(b, 'b1');
+      watch($rootScope, 'r1'); watch(b1, 'b1'); watch(a2, 'a2'); watch(a, 'a'); watch(b, 'b'); watch(a1, 'a1'); watch($rootScope, 'r2');
+      $rootScope.$digest();
+      expect(log.slice(0, 7).join(' ')).toBe('r1 r2 a a1 a2 b b1');
+    }));
+
+    it('should digest a scope created by a listener in the same pass when it comes after the current scope', inject(function($rootScope) {
+      var log = [];
+      var a = named($rootScope, 'a'), b = named($rootScope, 'b');
+      var created;
+      a.$watch('go', function(go) {
+        if (go) {
+          created = named(b, 'created');
+          created.$watch(function() { log.push('created'); });
+        }
+      });
+      b.$watch(function() { log.push('b'); });
+      $rootScope.$digest();
+      log.length = 0;
+      a.go = true;
+      $rootScope.$digest();
+      expect(log).toContain('created');
+      expect(log.indexOf('b')).toBeLessThan(log.indexOf('created'));
+    }));
+
+    it('should not digest a sibling that a listener destroys before it is reached', inject(function($rootScope) {
+      var log = [];
+      var a = named($rootScope, 'a'), b = named($rootScope, 'b'), c = named($rootScope, 'c');
+      a.$watch('kill', function(kill) { if (kill) b.$destroy(); });
+      b.$watch(function() { log.push('b'); });
+      c.$watch(function() { log.push('c'); });
+      $rootScope.$digest();
+      log.length = 0;
+      a.kill = true;
+      $rootScope.$digest();
+      expect(log).not.toContain('b');
+      expect(log).toContain('c');
+    }));
+
+    it('should digest the remaining scopes when a listener destroys the next sibling and its subtree', inject(function($rootScope) {
+      var log = [];
+      var a = named($rootScope, 'a'), b = named($rootScope, 'b'), b1 = named(b, 'b1'), c = named($rootScope, 'c');
+      a.$watch('kill', function(kill) { if (kill) b.$destroy(); });
+      b1.$watch(function() { log.push('b1'); });
+      c.$watch(function() { log.push('c'); });
+      a.kill = true;
+      $rootScope.$digest();
+      expect(log).not.toContain('b1');
+      expect(log).toContain('c');
+    }));
+
+    it('should keep digesting a scope\'s remaining watchers and its siblings after the scope destroys itself', inject(function($rootScope) {
+      var log = [];
+      var a = named($rootScope, 'a'), b = named($rootScope, 'b');
+      a.$watch(function() { log.push('a2'); });
+      a.$watch('x', function() { a.$destroy(); log.push('destroyed'); });
+      a.$watch(function() { log.push('a0'); });
+      b.$watch(function() { log.push('b'); });
+      a.x = 1;
+      try { $rootScope.$digest(); } catch (e) { /* see below */ }
+      // The watchers of the scope are all still evaluated in that pass. Whether the pass then
+      // manages to reach the siblings is not something to depend on, the point is that
+      // the bookkeeping is intact afterwards.
+      expect(log.slice(0, 3)).toEqual(['a2', 'destroyed', 'a0']);
+      expect($rootScope.$$childHead).toBe(b);
+      expect($rootScope.$$watchersCount).toBe(1);
+      $rootScope.$$phase = null;
+      log.length = 0;
+      $rootScope.$digest();
+      expect(log.length).toBeGreaterThan(0);
+      expect(log.filter(function(x) { return x !== 'b'; })).toEqual([]);
+    }));
+
+    it('should not skip or repeat watchers when watchers are removed and added while a scope is digested', inject(function($rootScope) {
+      var log = [];
+      var scope = $rootScope.$new();
+      var unwatch3;
+      scope.$watch(function() { log.push('w1'); });
+      scope.$watch(function() { log.push('w2'); });
+      unwatch3 = scope.$watch(function() { log.push('w3'); });
+      scope.$watch('trigger', function(t) {
+        if (t) {
+          unwatch3();
+          scope.$watch(function() { log.push('late'); });
+        }
+      });
+      scope.$digest();
+      log.length = 0;
+      scope.trigger = 1;
+      scope.$digest();
+      expect(log.filter(function(x) { return x === 'w1'; }).length).toBeGreaterThan(0);
+      expect(log).toContain('late');
+      expect(scope.$$watchers.length).toBe(4);
+      log.length = 0;
+      scope.$digest();
+      expect(log.indexOf('w3')).toBe(-1);
+      expect(log).toContain('late');
+    }));
+
+    it('should broadcast to descendants in depth-first order and skip subtrees without listeners', inject(function($rootScope) {
+      var log = [];
+      function listen(scope, tag) { scope.$on('ev', function() { log.push(tag); }); }
+      var a = named($rootScope, 'a'), b = named($rootScope, 'b'), a1 = named(a, 'a1'), b1 = named(b, 'b1'), b2 = named(b, 'b2');
+      listen(b2, 'b2'); listen(a1, 'a1'); listen($rootScope, 'r'); listen(a, 'a');
+      $rootScope.$broadcast('ev');
+      expect(log.join(' ')).toBe('r a a1 b2');
+    }));
+
+    it('should emit up through every ancestor, including through isolate scopes created with a custom parent', inject(function($rootScope) {
+      var log = [];
+      function listen(scope, tag) { scope.$on('ev', function() { log.push(tag); }); }
+      var a = named($rootScope, 'a'), a1 = named(a, 'a1');
+      var adopted = $rootScope.$new(false, a1);
+      listen(adopted, 'adopted'); listen(a1, 'a1'); listen(a, 'a'); listen($rootScope, 'r');
+      adopted.$emit('ev');
+      expect(log.join(' ')).toBe('adopted a1 a r');
+    }));
+
+    it('should keep listener counts right across destroy of nested scopes', inject(function($rootScope) {
+      var a = named($rootScope, 'a'), a1 = named(a, 'a1'), a2 = named(a, 'a2');
+      a1.$on('ev', noop); a2.$on('ev', noop); a2.$on('other', noop);
+      expect($rootScope.$$listenerCount).toEqual({ev: 2, other: 1});
+      expect(a.$$listenerCount).toEqual({ev: 2, other: 1});
+      a2.$destroy();
+      expect($rootScope.$$listenerCount).toEqual({ev: 1});
+      expect(a.$$listenerCount).toEqual({ev: 1});
+      a.$destroy();
+      expect($rootScope.$$listenerCount).toEqual({});
+    }));
+  });
+
+  describe('$watchCollection on a filter pipeline (memoized)', function() {
+    it('should only re-run the pipeline when an input changes shallowly', inject(function($rootScope) {
+      var runs = 0, seen;
+      $rootScope.items = [{n: 3}, {n: 1}, {n: 2}];
+      $rootScope.$watchCollection('items | orderBy:"n"', function(v) { runs++; seen = v.map(function(x) { return x.n; }); });
+      $rootScope.$digest();
+      expect(seen).toEqual([1, 2, 3]);
+      expect(runs).toBe(1);
+
+      // nothing changed: the pipeline is not evaluated again, and the listener does not fire
+      $rootScope.$digest();
+      expect(runs).toBe(1);
+
+      // shallow change of the list is seen
+      $rootScope.items.push({n: 0});
+      $rootScope.$digest();
+      expect(seen).toEqual([0, 1, 2, 3]);
+
+      // BREAKING: a change inside an item is not seen, the order stays stale
+      $rootScope.items[0].n = -5;
+      $rootScope.$digest();
+      expect(seen).toEqual([0, 1, 2, 3]);
+
+      // until the list itself is touched
+      $rootScope.items = $rootScope.items.slice();
+      $rootScope.$digest();
+      expect(seen).toEqual([-5, 0, 1, 2]);
+    }));
+  });
+
   describe('doc examples', function() {
 
     it('should properly fire off watch listeners upon scope changes', inject(function($rootScope) {

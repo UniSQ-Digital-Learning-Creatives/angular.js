@@ -1,0 +1,184 @@
+=== course-development-checklist/public
+main.js:9:getJSON(`fetch-content?courseLabel=${encodeURIComponent(courseLabel)}
+=== course-development-reports/public
+main.js:568:getJSON(`fetch-global-checklist-progression
+main.js:582:getJSON(`fetch-checklist-edit-dates
+main.js:596:getJSON(`fetch-checklist-teachers
+main.js:610:getJSON(`fetch-checklist-documentation-click-count
+main.js:624:getJSON(`fetch-checklist-teachers-that-read-documentation
+main.js:638:getJSON(`fetch-checklist-school-relationship
+main.js:660:reportAnalytics('Course Development Checklist Report
+=== media-catalogue/public
+main.js:1052:reportAnalytics('Photography Gallery
+main.js:94:getJSON(`api/${path}?${queryString({...params, sessionID: m.sessionID})}
+main.js:95:postJSON(`api/${path}
+photo-cache.js:80:fetch(`photos/${encodeURIComponent(filename)}
+=== podcast-manager/html
+main.js:165:getJSON(`api/podcasts/get-all?sessionID=${m.sessionID}&courseCode=${m.activity.courseCode}
+main.js:169:getJSON(`api/episodes/get?sessionID=${m.sessionID}&episodeID=${m.episodeID}
+main.js:179:getJSON(`api/podcasts/get?sessionID=${m.sessionID}&podcastID=${m.podcastID}
+main.js:184:getJSON(`api/episodes/get-all?sessionID=${m.sessionID}&courseCode=${m.activity.courseCode}&podcastI
+main.js:218:getJSON(`api/data/get-presenters?sessionID=${m.sessionID}
+main.js:221:getJSON(`api/data/get-schools?sessionID=${m.sessionID}
+main.js:248:getJSON(`api/data/get-courses?sessionID=${m.sessionID}
+main.js:333:get(`sys/pages/${config.page}.html
+=== si-admin/public
+main.js:162:getJSON(`fetch-access?sessionID=${sessionID}
+main.js:174:getJSON(`fetch-editors?sessionID=${sessionID}
+main.js:185:getJSON(`fetch-courses?sessionID=${sessionID}
+main.js:196:getJSON(`fetch-course-access?sessionID=${sessionID}&course=${fetchCurrentCourse}
+main.js:229:post(`save-user-access?sessionID=${sessionID}
+main.js:258:post(`save-course-access?sessionID=${sessionID}
+=== si-analytics/public
+=== si-manager/public/status-dashboard
+main.js:79:getJSON(`status-data
+=== si-manager/public/toolbox-feedback
+main.js:38:reportAnalytics("StudyDesk Toolbox
+main.js:47:reportAnalytics("StudyDesk Toolbox
+=== si-photography-catalogue/public
+main.js:122:getJSON(`single?id=${id}
+main.js:141:beacon(`update-views?id=${photo._id}
+main.js:150:beacon(`update-downloads?id=${photo._id}
+main.js:158:beacon(`update-favourite?id=${photo._id}&user=${user.email}
+main.js:79:getJSON(`list
+=== si-studydesk-styles/website
+main.js:121:getJSON(`../get-stylesheets?sessionID=${m.sessionID}
+main.js:126:getJSON(`../get-single-stylesheet?sessionID=${m.sessionID}&filename=${encodeURIComponent(filename)}
+main.js:149:fetch(`../save-file?sessionID=${m.sessionID}
+main.js:220:postJSON(`../delete-file?sessionID=${m.sessionID}
+=== toolbox-3d-model-viewer/public
+main.js:161:getJSON(`fetch-model-data?modelID=${modelID}
+main.js:298:get(`delete-annotation?modelID=${m.modelID}&annotationID=${annotationID}
+main.js:338:get(`delete-model?modelID=${modelID}
+main.js:361:post('save-annotation
+main.js:393:post('save-model
+main.js:445:get(`delete-item?modelID=${m.modelID}&annotationID=${annotationID}&itemID=${itemID}
+main.js:488:post('make-item-primary
+main.js:510:post('save-item
+main.js:614:fetch(`save-model-thumbnail?modelID=${m.data.model._id}
+main.js:74:getJSON('fetch-all-models
+main.js:922:get(`sys/pages/${config.page}.html
+=== toolbox-course-roadmap/public
+=== toolbox-generators/public
+main.js:1085:get(`sys/pages/save-as-template-popup.html
+main.js:1106:get(`sys/pages/save-as-template-popup.html
+main.js:127:fetch(`${lms_url}/course/edit.php?id=${context_id}
+main.js:1335:get(`sys/pages/edit-${attrs.overlayButton}-popup.html
+main.js:1355:get(`sys/pages/edit-${attrs.overlayButton}-popup.html
+main.js:244:fetch(`${lms_url}/repository/repository_ajax.php?action=upload
+main.js:256:fetch(`${lms_url}/course/edit.php?id=${context_id}
+main.js:270:fetch(`${m.storageBase()}/${params.source}.webp
+main.js:328:post('../save-rive-file
+main.js:378:fetch('/styles/palette.min.css
+main.js:476:post('../save-profile-image
+main.js:684:getJSON(`../fetch-all-buttons-and-tiles-existing?courseCode=${m.activity.courseCode}&username=${m.u
+main.js:73:fetch(`${m.ilarOrigin}/images/icons/${file}
+main.js:744:post('../save-buttons-and-tiles-template
+main.js:756:getJSON(`../fetch-all-cards-existing?courseCode=${m.activity.courseCode}&username=${m.user.username
+main.js:816:post('../save-cards-template
+=== toolbox-gift-quiz-converter/public
+=== toolbox-group-discussion/public
+main.js:1117:beacon(`/group-discussion/set-discussion-page?discussionID=${m.discussionID}&courseLabel=${m.cours
+main.js:18:get('preview
+main.js:392:beacon(`update-viewed?userID=${m.user.userID}&rowID=${data[i]._id}&onlyNew=true
+main.js:710:getJSON(`fetch-roster?courseLabel=${encodeURIComponent(m.courseLabel)}&sessionID=${m.sessionID}
+main.js:808:post('upload-image
+=== toolbox-group-discussion/public-admin
+main.js:159:getJSON(`../catch-up/discussions?sessionID=${encodeURIComponent(m.sessionID || null)}
+=== toolbox-inline-completion-tracker/public
+main.js:125:post("../save-new-tracker
+main.js:86:getJSON(`fetch-tracker-data?id=${m.id}&userID=${m.user.userID}&courseID=${m.activity.contextID}
+main.js:92:getJSON(`../fetch-completion-data?courseID=${window.parent.m.activity.contextID}&userID=${window.pa
+main.js:98:getJSON(`../fetch-tracker-data?id=${window.parent.m.$root.newIlar.params.id}&userID=${window.parent
+=== toolbox-notes/public
+main.js:225:getJSON(`/notes/documents?sessionID=${m.sessionID}
+main.js:235:getJSON(`/notes/documents/shared?sessionID=${m.sessionID}&editorID=${m.editorID}
+main.js:243:getJSON(`/notes/documents/${id}?sessionID=${m.sessionID}
+main.js:340:postJSON('/notes/documents
+main.js:363:postJSON(`/notes/documents/${m.currentDocument._id}/save
+main.js:417:getJSON(`/notes/documents/${m.currentDocument._id}/revisions?sessionID=${m.sessionID}
+main.js:426:getJSON(`/notes/documents/${m.currentDocument._id}/revisions/${revisionID}?sessionID=${m.sessionID}
+main.js:438:getJSON(`/notes/documents/${m.currentDocument._id}/revisions/${revisionID}?sessionID=${m.sessionID}
+main.js:44:reportAnalytics('Notes ILAR
+main.js:487:getJSON(`/notes/documents/${m.currentDocument._id}/comments?sessionID=${m.sessionID}
+main.js:569:postJSON(`/notes/documents/${m.currentDocument._id}/comments
+main.js:595:postJSON(`/notes/documents/${m.currentDocument._id}/comments/${comment._id}/reply
+main.js:629:postJSON(`/notes/documents/${m.currentDocument._id}/comments/${comment._id}/edit
+main.js:654:postJSON(`/notes/documents/${m.currentDocument._id}/comments/${comment._id}/replies/${reply._id}/edi
+main.js:669:postJSON(`/notes/documents/${m.currentDocument._id}/comments/${comment._id}/react
+main.js:682:postJSON(`/notes/documents/${m.currentDocument._id}/comments/${comment._id}/replies/${reply._id}/rea
+main.js:706:postJSON(`/notes/documents/${m.currentDocument._id}/visibility
+main.js:719:postJSON(`/notes/documents/${id}/delete
+=== toolbox-photospheres/public
+main.js:105:getJSON('fetch-all-sessions
+main.js:111:getJSON('fetch-all-photospheres
+main.js:139:getJSON(`new-photosphere-collection?title=${encodeURIComponent(data.title)}&template=${data.templat
+main.js:190:postJSON('new-session
+main.js:202:postJSON('save-session
+main.js:220:postJSON('update-photosphere-collection
+main.js:242:post(`delete-photosphere-collection
+main.js:254:post(`delete-photosphere-image
+main.js:338:getJSON(`check-photosphere-status?id=${m.photosphere._id}&entryID=${ids.join(
+main.js:417:postJSON('admin/save-session
+main.js:425:postJSON('admin/update-photosphere-collection
+main.js:87:get('preview
+main.js:977:getJSON(`fetch-single-data?serverID=${serverID}
+=== toolbox-podcast-player/public
+main.js:114:getJSON(`/podcast-manager/api/episodes/get?episodeID=${m.meta.episodeID}
+main.js:115:getJSON(`/podcast-manager/api/podcasts/get?podcastID=${episode.podcastID}
+main.js:202:getJSON(`/fetch-settings?userID=${m.user.username}
+main.js:212:getJSON(`get-progress?id=${btoa(m.sanitizeForBtoa(JSON.stringify(m.meta)))}&user=${m.user.email}
+main.js:258:getJSON(`get-transcript?url=${btoa(m?.episode?.mp3)}&title=${btoa(m.sanitizeForBtoa(m?.episode?.tit
+main.js:267:getJSON(`get-panopto-status?url=${btoa(m?.episode?.mp3)}&title=${btoa(m.sanitizeForBtoa(m?.episode?
+main.js:382:post('/save-settings
+main.js:423:get("content-type
+main.js:5:get('preview
+main.js:682:beacon(`save-progress?id=${btoa(m.sanitizeForBtoa(JSON.stringify(m.meta)))}&user=${m.user.email}&p
+main.js:81:getJSON(`fetch?${url}
+=== toolbox-previews/public
+main.js:104:get('preview
+main.js:135:get('mode
+main.js:161:get('previewReactionBar
+main.js:33:get('aspectRatio
+main.js:48:get('previewHeight
+main.js:65:get('mode
+=== toolbox-pronunciation-guide/public
+main.js:180:getJSON(`fetch-content?contentID=${m.$root.contentID}
+main.js:208:getJSON(`fetch-metadata?contentID=${m.$root.contentID}
+=== toolbox/public
+main.js:1255:getJSON(`fetch-content-templates?lmsURL=${m.activity.lmsURL}&courseLabel=${encodeURIComponent(m.act
+main.js:1260:getJSON(`h5p-preview/map?lmsURL=${encodeURIComponent(m.activity.lmsURL)}
+main.js:1449:getJSON(`fetch-course-templates
+main.js:1459:getJSON('fetch-h5p-templates
+main.js:1474:getJSON(`/notes/course-settings/enabled?courseLabel=${encodeURIComponent(m.activity.courseLabel)}&c
+main.js:1668:fetch(`/images/icons/${file}
+main.js:1762:get('circle
+main.js:1763:get('glyph
+main.js:1798:get('url
+main.js:1800:get('embed
+main.js:1970:getJSON(`get-inserts-by-item?lmsURL=${m.activity.lmsURL}
+main.js:1984:getJSON(`/podcast-manager/api/podcasts/get-all?sessionID=${m.sessionID}&courseCode=${m.activity.cou
+main.js:1994:getJSON(`/group-discussion/fetch-all?lite=true&courseLabel=${m.activity.courseLabel}
+main.js:2012:getJSON(`fetch-audio-player-items?lite=true&courseCode=${m.activity.courseCode}&username=${m.user.u
+main.js:2023:getJSON(`/fetch-settings?userID=${m.user.userID}
+main.js:2123:getJSON(`/announcements/fetch-forum-data?contextID=${m.activity.contextID}&userID=${m.user.userID}
+main.js:36:getJSON('/pronunciation-ilar/fetch-available-guides?lite=true
+main.js:40:getJSON(`/schools.json
+main.js:465:post('/save-settings
+main.js:48:getJSON('/photospheres/admin/fetch-all-sessions?lite=true
+main.js:61:getJSON('/3d-model-viewer/fetch-all-models?lite=true
+main.js:66:post(`../save-content-template-section
+main.js:94:getJSON(`../get-content-template-section?id=${m.transferData.sectionID}&lmsURL=${m.activity.lmsURL}
+toolboxItems.js:1386:postJSON('/notes/course-settings
+toolboxItems.js:145:getJSON(`audio-player-status/${id}
+toolboxItems.js:533:post('upload-audio
+toolboxItems.js:618:post('upload-audio-thumbnail
+=== toolbox-reaction-bar/public
+main.js:59:getJSON(`get-reaction-data?uuid=${uuid}
+main.js:61:getJSON(`get-reaction-data?uuid=${uuid}&userID=${userID}
+main.js:86:getJSON(`../fetch-dashboard-data?courseLabel=${courseLabel}&lms=${m.activity.lmsURL}
+=== toolbox-sample-app/public
+main.js:14:reportAnalytics('Sample ILAR
+=== toolbox-suggest-feature/public
+main.js:21:getJSON(`fetch-suggestions?boardID=${m.boardID}
+main.js:55:postJSON('save-suggestion

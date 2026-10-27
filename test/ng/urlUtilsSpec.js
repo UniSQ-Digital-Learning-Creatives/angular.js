@@ -1,6 +1,20 @@
 'use strict';
 
 describe('urlUtils', function() {
+  describe('urlResolveHref', function() {
+    it('should return the same href as urlResolve', function() {
+      forEach(['foo', '/foo?bar=baz#qux', 'http://example.com/a/../b', 'mailto:a@b.c', '',
+               'data:text/plain,x', '//cdn.example.com/x.js', '#top'], function(url) {
+        expect(urlResolveHref(url)).toBe(urlResolve(url).href);
+      });
+    });
+
+    it('should return the href of already parsed URLs', function() {
+      var urlObj = urlResolve('/foo?bar=baz#qux');
+      expect(urlResolveHref(urlObj)).toBe(urlObj.href);
+    });
+  });
+
   describe('urlResolve', function() {
     it('should returned already parsed URLs unchanged', function() {
       var urlObj = urlResolve('/foo?bar=baz#qux');

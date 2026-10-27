@@ -8,19 +8,11 @@
 // service.
 var urlParsingNode = window.document.createElement('a');
 var originUrl = urlResolve(window.location.href);
-var baseUrlParsingNode;
-
-urlParsingNode.href = 'http://[::1]';
-
-// Support: IE 9-11 only, Edge 16-17 only (fixed in 18 Preview)
-// IE/Edge don't wrap IPv6 addresses' hostnames in square brackets
-// when parsed out of an anchor element.
-var ipv6InBrackets = urlParsingNode.hostname === '[::1]';
 
 /**
  *
- * Implementation Notes for non-IE browsers
- * ----------------------------------------
+ * Implementation Notes
+ * --------------------
  * Assigning a URL to the href property of an anchor DOM node, even one attached to the DOM,
  * results both in the normalizing and parsing of the URL.  Normalizing means that a relative
  * URL will be resolved into an absolute URL in the context of the application document.
@@ -28,15 +20,6 @@ var ipv6InBrackets = urlParsingNode.hostname === '[::1]';
  * properties are all populated to reflect the normalized URL.  This approach has wide
  * compatibility - Safari 1+, Mozilla 1+ etc.  See
  * http://www.aptana.com/reference/html/api/HTMLAnchorElement.html
- *
- * Implementation Notes for IE
- * ---------------------------
- * IE <= 10 normalizes the URL when assigned to the anchor node similar to the other
- * browsers.  However, the parsed components will not be set if the URL assigned did not specify
- * them.  (e.g. if you assign a.href = "foo", then a.protocol, a.host, etc. will be empty.)  We
- * work around that by performing the parsing in a 2nd step by taking a previously normalized
- * URL (e.g. by assigning to a.href) and assigning it a.href again.  This correctly populates the
- * properties such as protocol, hostname, port, etc.
  *
  * References:
  *   http://developer.mozilla.org/en-US/docs/Web/API/HTMLAnchorElement
@@ -66,23 +49,7 @@ var ipv6InBrackets = urlParsingNode.hostname === '[::1]';
 function urlResolve(url) {
   if (!isString(url)) return url;
 
-  var href = url;
-
-  // Support: IE 9-11 only
-  if (msie) {
-    // Normalize before parse.  Refer Implementation Notes on why this is
-    // done in two steps on IE.
-    urlParsingNode.setAttribute('href', href);
-    href = urlParsingNode.href;
-  }
-
-  urlParsingNode.setAttribute('href', href);
-
-  var hostname = urlParsingNode.hostname;
-
-  if (!ipv6InBrackets && hostname.indexOf(':') > -1) {
-    hostname = '[' + hostname + ']';
-  }
+  urlParsingNode.setAttribute('href', url);
 
   return {
     href: urlParsingNode.href,
@@ -90,7 +57,7 @@ function urlResolve(url) {
     host: urlParsingNode.host,
     search: urlParsingNode.search ? urlParsingNode.search.replace(/^\?/, '') : '',
     hash: urlParsingNode.hash ? urlParsingNode.hash.replace(/^#/, '') : '',
-    hostname: hostname,
+    hostname: urlParsingNode.hostname,
     port: urlParsingNode.port,
     pathname: (urlParsingNode.pathname.charAt(0) === '/')
       ? urlParsingNode.pathname
@@ -106,6 +73,15 @@ function urlResolve(url) {
  * or a parsed URL object.
  * @returns {boolean} Whether the request is for the same origin as the application document.
  */
+/**
+ * Same as `urlResolve(url).href`, without parsing out (and allocating) all the other parts.
+ */
+function urlResolveHref(url) {
+  if (!isString(url)) return url.href;
+  urlParsingNode.setAttribute('href', url);
+  return urlParsingNode.href;
+}
+
 function urlIsSameOrigin(requestUrl) {
   return urlsAreSameOrigin(requestUrl, originUrl);
 }
@@ -175,18 +151,5 @@ function urlsAreSameOrigin(url1, url2) {
  * @returns {string}
  */
 function getBaseUrl() {
-  if (window.document.baseURI) {
-    return window.document.baseURI;
-  }
-
-  // `document.baseURI` is available everywhere except IE
-  if (!baseUrlParsingNode) {
-    baseUrlParsingNode = window.document.createElement('a');
-    baseUrlParsingNode.href = '.';
-
-    // Work-around for IE bug described in Implementation Notes. The fix in `urlResolve()` is not
-    // suitable here because we need to track changes to the base URL.
-    baseUrlParsingNode = baseUrlParsingNode.cloneNode(false);
-  }
-  return baseUrlParsingNode.href;
+  return window.document.baseURI;
 }

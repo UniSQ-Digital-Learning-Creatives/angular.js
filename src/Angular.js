@@ -3,9 +3,7 @@
 /* We need to tell ESLint what variables are being exported */
 /* exported
   angular,
-  msie,
   jqLite,
-  jQuery,
   slice,
   splice,
   push,
@@ -64,7 +62,6 @@
   simpleCompare,
   equals,
   csp,
-  jq,
   concat,
   sliceArgs,
   bind,
@@ -84,7 +81,6 @@
   bootstrap,
   getTestability,
   snake_case,
-  bindJQuery,
   assertArg,
   assertArgFn,
   assertNotHasOwnProperty,
@@ -148,27 +144,19 @@ var uppercase = function(string) {return isString(string) ? string.toUpperCase()
 
 
 var
-    msie,             // holds major version number for IE, or NaN if UA is not IE.
-    jqLite,           // delay binding since jQuery could be loaded after us.
-    jQuery,           // delay binding
+    jqLite,           // set to JQLite in jqLite.js
     slice             = [].slice,
     splice            = [].splice,
     push              = [].push,
     toString          = Object.prototype.toString,
     getPrototypeOf    = Object.getPrototypeOf,
+    objectPrototype   = Object.prototype,
     ngMinErr          = minErr('ng'),
 
     /** @name angular */
     angular           = window.angular || (window.angular = {}),
     angularModule,
     uid               = 0;
-
-// Support: IE 9-11 only
-/**
- * documentMode is an IE-only property
- * http://msdn.microsoft.com/en-us/library/ie/cc196988(v=vs.85).aspx
- */
-msie = window.document.documentMode;
 
 
 /**
@@ -182,15 +170,10 @@ function isArrayLike(obj) {
   // `null`, `undefined` and `window` are not array-like
   if (obj == null || isWindow(obj)) return false;
 
-  // arrays, strings and jQuery/jqLite objects are array like
-  // * jqLite is either the jQuery or jqLite constructor function
-  // * we have to check the existence of jqLite first as this method is called
-  //   via the forEach method when constructing the jqLite object in the first place
-  if (isArray(obj) || isString(obj) || (jqLite && obj instanceof jqLite)) return true;
+  // arrays, strings and jqLite objects are array like
+  if (isArray(obj) || isString(obj) || obj instanceof JQLite) return true;
 
-  // Support: iOS 8.2 (not reproducible in simulator)
-  // "length" in obj used to prevent JIT error (gh-11508)
-  var length = 'length' in Object(obj) && obj.length;
+  var length = obj.length;
 
   // NodeList objects (with `item` method) and
   // other objects with suitable length characteristics are array-like
@@ -425,10 +408,7 @@ function toInt(str) {
   return parseInt(str, 10);
 }
 
-var isNumberNaN = Number.isNaN || function isNumberNaN(num) {
-  // eslint-disable-next-line no-self-compare
-  return num !== num;
-};
+var isNumberNaN = Number.isNaN;
 
 
 function inherit(parent, extra) {
@@ -634,7 +614,6 @@ function isError(value) {
   var tag = toString.call(value);
   switch (tag) {
     case '[object Error]': return true;
-    case '[object Exception]': return true;
     case '[object DOMException]': return true;
     default: return value instanceof Error;
   }
@@ -869,8 +848,7 @@ function arrayRemove(array, value) {
   </example>
  */
 function copy(source, destination, maxDepth) {
-  var stackSource = [];
-  var stackDest = [];
+  var seen;
   maxDepth = isValidObjectMaxDepth(maxDepth) ? maxDepth : NaN;
 
   if (destination) {
@@ -892,124 +870,116 @@ function copy(source, destination, maxDepth) {
       });
     }
 
-    stackSource.push(source);
-    stackDest.push(destination);
-    return copyRecurse(source, destination, maxDepth);
+    seen = new NgMap();
+    seen.set(source, destination);
+    return copyRecurse(source, destination, maxDepth, seen);
   }
 
-  return copyElement(source, maxDepth);
+  // Simple values
+  if (!isObject(source)) {
+    return source;
+  }
 
-  function copyRecurse(source, destination, maxDepth) {
-    maxDepth--;
-    if (maxDepth < 0) {
-      return '...';
+  return copyElement(source, maxDepth, new NgMap());
+}
+
+// `seen` maps every source object visited so far to its copy, so that shared references and
+// cycles in the source are reproduced in the copy.
+function copyRecurse(source, destination, maxDepth, seen) {
+  maxDepth--;
+  if (maxDepth < 0) {
+    return '...';
+  }
+  var key;
+  if (isArray(source)) {
+    for (var i = 0, ii = source.length; i < ii; i++) {
+      destination.push(copyElement(source[i], maxDepth, seen));
     }
-    var h = destination.$$hashKey;
-    var key;
-    if (isArray(source)) {
-      for (var i = 0, ii = source.length; i < ii; i++) {
-        destination.push(copyElement(source[i], maxDepth));
-      }
-    } else if (isBlankObject(source)) {
-      // createMap() fast path --- Safe to avoid hasOwnProperty check because prototype chain is empty
-      for (key in source) {
-        destination[key] = copyElement(source[key], maxDepth);
-      }
-    } else if (source && typeof source.hasOwnProperty === 'function') {
-      // Slow path, which must rely on hasOwnProperty
-      for (key in source) {
-        if (source.hasOwnProperty(key)) {
-          destination[key] = copyElement(source[key], maxDepth);
-        }
-      }
-    } else {
-      // Slowest path --- hasOwnProperty can't be called as a method
-      for (key in source) {
-        if (hasOwnProperty.call(source, key)) {
-          destination[key] = copyElement(source[key], maxDepth);
-        }
+  } else {
+    // Only own enumerable properties are copied. $$hashKey is never copied, the destination keeps
+    // whatever it had.
+    for (key in source) {
+      if (hasOwnProperty.call(source, key) && key !== '$$hashKey') {
+        destination[key] = copyElement(source[key], maxDepth, seen);
       }
     }
-    setHashKey(destination, h);
+  }
+  return destination;
+}
+
+function copyElement(source, maxDepth, seen) {
+  // Simple values
+  if (!isObject(source)) {
+    return source;
+  }
+
+  // Already copied values
+  var destination = seen.get(source);
+  if (destination !== undefined) {
     return destination;
   }
 
-  function copyElement(source, maxDepth) {
-    // Simple values
-    if (!isObject(source)) {
-      return source;
-    }
-
-    // Already copied values
-    var index = stackSource.indexOf(source);
-    if (index !== -1) {
-      return stackDest[index];
-    }
-
-    if (isWindow(source) || isScope(source)) {
-      throw ngMinErr('cpws',
-        'Can\'t copy! Making copies of Window or Scope instances is not supported.');
-    }
-
-    var needsRecurse = false;
-    var destination = copyType(source);
-
-    if (destination === undefined) {
-      destination = isArray(source) ? [] : Object.create(getPrototypeOf(source));
-      needsRecurse = true;
-    }
-
-    stackSource.push(source);
-    stackDest.push(destination);
-
-    return needsRecurse
-      ? copyRecurse(source, destination, maxDepth)
-      : destination;
+  if (isWindow(source) || isScope(source)) {
+    throw ngMinErr('cpws',
+      'Can\'t copy! Making copies of Window or Scope instances is not supported.');
   }
 
-  function copyType(source) {
-    switch (toString.call(source)) {
-      case '[object Int8Array]':
-      case '[object Int16Array]':
-      case '[object Int32Array]':
-      case '[object Float32Array]':
-      case '[object Float64Array]':
-      case '[object Uint8Array]':
-      case '[object Uint8ClampedArray]':
-      case '[object Uint16Array]':
-      case '[object Uint32Array]':
-        return new source.constructor(copyElement(source.buffer), source.byteOffset, source.length);
+  var proto = getPrototypeOf(source);
+  var needsRecurse = false;
 
-      case '[object ArrayBuffer]':
-        // Support: IE10
-        if (!source.slice) {
-          // If we're in this case we know the environment supports ArrayBuffer
-          /* eslint-disable no-undef */
-          var copied = new ArrayBuffer(source.byteLength);
-          new Uint8Array(copied).set(new Uint8Array(source));
-          /* eslint-enable */
-          return copied;
-        }
-        return source.slice(0);
+  // Arrays and plain objects can't be any of the types copyType special cases (apart from
+  // objects that bring their own cloneNode), so skip the toString dispatch for them.
+  if (proto === objectPrototype || proto === null || isArray(source)) {
+    destination = isFunction(source.cloneNode) ? source.cloneNode(true) : undefined;
+  } else {
+    destination = copyType(source, seen);
+  }
 
-      case '[object Boolean]':
-      case '[object Number]':
-      case '[object String]':
-      case '[object Date]':
-        return new source.constructor(source.valueOf());
+  if (destination === undefined) {
+    destination = isArray(source) ? [] : (proto === objectPrototype ? {} : Object.create(proto));
+    needsRecurse = true;
+  }
 
-      case '[object RegExp]':
-        var re = new RegExp(source.source, source.toString().match(/[^/]*$/)[0]);
-        re.lastIndex = source.lastIndex;
-        return re;
+  seen.set(source, destination);
 
-      case '[object Blob]':
-        return new source.constructor([source], {type: source.type});
-    }
+  return needsRecurse
+    ? copyRecurse(source, destination, maxDepth, seen)
+    : destination;
+}
 
-    if (isFunction(source.cloneNode)) {
-      return source.cloneNode(true);
-    }
+function copyType(source, seen) {
+  switch (toString.call(source)) {
+    case '[object Int8Array]':
+    case '[object Int16Array]':
+    case '[object Int32Array]':
+    case '[object Float32Array]':
+    case '[object Float64Array]':
+    case '[object Uint8Array]':
+    case '[object Uint8ClampedArray]':
+    case '[object Uint16Array]':
+    case '[object Uint32Array]':
+      return new source.constructor(copyElement(source.buffer, NaN, seen), source.byteOffset, source.length);
+
+    case '[object ArrayBuffer]':
+      return source.slice(0);
+
+    case '[object Boolean]':
+    case '[object Number]':
+    case '[object String]':
+    case '[object Date]':
+      return new source.constructor(source.valueOf());
+
+    case '[object RegExp]':
+      var re = new RegExp(source.source, source.toString().match(/[^/]*$/)[0]);
+      re.lastIndex = source.lastIndex;
+      return re;
+
+    case '[object Blob]':
+      return new source.constructor([source], {type: source.type});
+  }
+
+  if (isFunction(source.cloneNode)) {
+    return source.cloneNode(true);
   }
 }
 
@@ -1086,36 +1056,56 @@ function equals(o1, o2) {
   if (o1 === null || o2 === null) return false;
   // eslint-disable-next-line no-self-compare
   if (o1 !== o1 && o2 !== o2) return true; // NaN === NaN
-  var t1 = typeof o1, t2 = typeof o2, length, key, keySet;
+  var t1 = typeof o1, t2 = typeof o2, length, key, keys, n, j, v, v2, proto;
   if (t1 === t2 && t1 === 'object') {
     if (isArray(o1)) {
       if (!isArray(o2)) return false;
       if ((length = o1.length) === o2.length) {
         for (key = 0; key < length; key++) {
-          if (!equals(o1[key], o2[key])) return false;
+          v = o1[key];
+          v2 = o2[key];
+          if (v !== v2 && !equals(v, v2)) return false;
         }
         return true;
       }
-    } else if (isDate(o1)) {
-      if (!isDate(o2)) return false;
-      return simpleCompare(o1.getTime(), o2.getTime());
-    } else if (isRegExp(o1)) {
-      if (!isRegExp(o2)) return false;
-      return o1.toString() === o2.toString();
     } else {
-      if (isScope(o1) || isScope(o2) || isWindow(o1) || isWindow(o2) ||
-        isArray(o2) || isDate(o2) || isRegExp(o2)) return false;
-      keySet = createMap();
-      for (key in o1) {
-        if (key.charAt(0) === '$' || isFunction(o1[key])) continue;
-        if (!equals(o1[key], o2[key])) return false;
-        keySet[key] = true;
+      // Objects whose prototype is Object.prototype (or null) can't be a Date or RegExp, which
+      // saves two toString calls per object on the common path.
+      proto = getPrototypeOf(o1);
+      if (proto !== objectPrototype && proto !== null) {
+        if (isDate(o1)) {
+          if (!isDate(o2)) return false;
+          return simpleCompare(o1.getTime(), o2.getTime());
+        } else if (isRegExp(o1)) {
+          if (!isRegExp(o2)) return false;
+          return o1.toString() === o2.toString();
+        }
       }
+      if (isScope(o1) || isScope(o2) || isWindow(o1) || isWindow(o2) || isArray(o2)) return false;
+      proto = getPrototypeOf(o2);
+      if (proto !== objectPrototype && proto !== null && (isDate(o2) || isRegExp(o2))) return false;
+      // Keys of o1 that took part in the comparison, in enumeration order. o2 normally enumerates
+      // its keys in the same order, so a cursor makes the o2 pass O(1) per key without allocating
+      // a lookup map.
+      keys = [];
+      n = 0;
+      for (key in o1) {
+        if (key.charCodeAt(0) === 36 /* $ */) continue;
+        v = o1[key];
+        if (typeof v === 'function') continue;
+        v2 = o2[key];
+        if (v !== v2 && !equals(v, v2)) return false;
+        keys[n++] = key;
+      }
+      j = 0;
       for (key in o2) {
-        if (!(key in keySet) &&
-            key.charAt(0) !== '$' &&
-            isDefined(o2[key]) &&
-            !isFunction(o2[key])) return false;
+        if (key.charCodeAt(0) === 36 /* $ */) continue;
+        if (j < n && keys[j] === key) {
+          j++;
+          continue;
+        }
+        v = o2[key];
+        if (typeof v !== 'undefined' && typeof v !== 'function' && keys.indexOf(key) === -1) return false;
       }
       return true;
     }
@@ -1156,60 +1146,6 @@ var csp = function() {
       return true;
     }
   }
-};
-
-/**
- * @ngdoc directive
- * @module ng
- * @name ngJq
- *
- * @element ANY
- * @param {string=} ngJq the name of the library available under `window`
- * to be used for angular.element
- * @description
- * Use this directive to force the angular.element library.  This should be
- * used to force either jqLite by leaving ng-jq blank or setting the name of
- * the jquery variable under window (eg. jQuery).
- *
- * Since AngularJS looks for this directive when it is loaded (doesn't wait for the
- * DOMContentLoaded event), it must be placed on an element that comes before the script
- * which loads angular. Also, only the first instance of `ng-jq` will be used and all
- * others ignored.
- *
- * @example
- * This example shows how to force jqLite using the `ngJq` directive to the `html` tag.
- ```html
- <!doctype html>
- <html ng-app ng-jq>
- ...
- ...
- </html>
- ```
- * @example
- * This example shows how to use a jQuery based library of a different name.
- * The library name must be available at the top most 'window'.
- ```html
- <!doctype html>
- <html ng-app ng-jq="jQueryLib">
- ...
- ...
- </html>
- ```
- */
-var jq = function() {
-  if (isDefined(jq.name_)) return jq.name_;
-  var el;
-  var i, ii = ngAttrPrefixes.length, prefix, name;
-  for (i = 0; i < ii; ++i) {
-    prefix = ngAttrPrefixes[i];
-    el = window.document.querySelector('[' + prefix.replace(':', '\\:') + 'jq]');
-    if (el) {
-      name = el.getAttribute(prefix + 'jq');
-      break;
-    }
-  }
-
-  return (jq.name_ = name);
 };
 
 function concat(array1, array2, index) {
@@ -1896,58 +1832,6 @@ function snake_case(name, separator) {
   return name.replace(SNAKE_CASE_REGEXP, function(letter, pos) {
     return (pos ? separator : '') + letter.toLowerCase();
   });
-}
-
-var bindJQueryFired = false;
-function bindJQuery() {
-  var originalCleanData;
-
-  if (bindJQueryFired) {
-    return;
-  }
-
-  // bind to jQuery if present;
-  var jqName = jq();
-  jQuery = isUndefined(jqName) ? window.jQuery :   // use jQuery (if present)
-           !jqName             ? undefined     :   // use jqLite
-                                 window[jqName];   // use jQuery specified by `ngJq`
-
-  // Use jQuery if it exists with proper functionality, otherwise default to us.
-  // AngularJS 1.2+ requires jQuery 1.7+ for on()/off() support.
-  // AngularJS 1.3+ technically requires at least jQuery 2.1+ but it may work with older
-  // versions. It will not work for sure with jQuery <1.7, though.
-  if (jQuery && jQuery.fn.on) {
-    jqLite = jQuery;
-    extend(jQuery.fn, {
-      scope: JQLitePrototype.scope,
-      isolateScope: JQLitePrototype.isolateScope,
-      controller: /** @type {?} */ (JQLitePrototype).controller,
-      injector: JQLitePrototype.injector,
-      inheritedData: JQLitePrototype.inheritedData
-    });
-  } else {
-    jqLite = JQLite;
-  }
-
-  // All nodes removed from the DOM via various jqLite/jQuery APIs like .remove()
-  // are passed through jqLite/jQuery.cleanData. Monkey-patch this method to fire
-  // the $destroy event on all removed nodes.
-  originalCleanData = jqLite.cleanData;
-  jqLite.cleanData = function(elems) {
-    var events;
-    for (var i = 0, elem; (elem = elems[i]) != null; i++) {
-      events = (jqLite._data(elem) || {}).events;
-      if (events && events.$destroy) {
-        jqLite(elem).triggerHandler('$destroy');
-      }
-    }
-    originalCleanData(elems);
-  };
-
-  angular.element = jqLite;
-
-  // Prevent double-proxying.
-  bindJQueryFired = true;
 }
 
 /**

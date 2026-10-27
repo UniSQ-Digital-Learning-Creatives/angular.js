@@ -8,9 +8,7 @@
 
     /* angular.js */
     "angular": false,
-    "msie": false,
     "jqLite": false,
-    "jQuery": false,
     "slice": false,
     "splice": false,
     "push": false,
@@ -90,7 +88,6 @@
     "bootstrap": false,
     "getTestability": false,
     "snake_case": false,
-    "bindJQuery": false,
     "assertArg": false,
     "assertArgFn": false,
     "assertNotHasOwnProperty": false,
@@ -159,6 +156,7 @@
 
     /* urlUtils.js */
     "urlResolve": false,
+    "urlResolveHref": false,
     "urlIsSameOrigin": false,
     "urlIsSameOriginAsBaseUrl": false,
     "urlIsAllowedOriginFactory": false,

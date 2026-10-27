@@ -73,7 +73,7 @@ function $$SanitizeUriProvider() {
     return function sanitizeUri(uri, isMediaUrl) {
       // if (!uri) return uri;
       var regex = isMediaUrl ? imgSrcSanitizationTrustedUrlList : aHrefSanitizationTrustedUrlList;
-      var normalizedVal = urlResolve(uri && uri.trim()).href;
+      var normalizedVal = urlResolveHref(uri && uri.trim());
       if (normalizedVal !== '' && !normalizedVal.match(regex)) {
         return 'unsafe:' + normalizedVal;
       }

@@ -578,6 +578,11 @@ function orderByFilter($parse) {
     // Define the `compare()` function. Use a default comparator if none is specified.
     var compare = isFunction(compareFn) ? compareFn : defaultCompare;
 
+    if (compare === defaultCompare && isArray(array)) {
+      var sorted = defaultSort(array, predicates, descending);
+      if (sorted) return sorted;
+    }
+
     // The next three lines are a version of a Swartzian Transform idiom from Perl
     // (sometimes called the Decorate-Sort-Undecorate idiom)
     // See https://en.wikipedia.org/wiki/Schwartzian_transform
@@ -613,6 +618,64 @@ function orderByFilter($parse) {
       return (compare(v1.tieBreaker, v2.tieBreaker) || defaultCompare(v1.tieBreaker, v2.tieBreaker)) * descending;
     }
   };
+
+  // Equivalent to the generic path below with the default comparator, but each item's sort keys
+  // (lower-cased strings, object positions) are computed once instead of on every comparison, and
+  // no per-item wrapper objects are allocated. Returns undefined for sparse arrays, which the
+  // generic path handles (`Array#map` preserves holes).
+  function defaultSort(array, predicates, descending) {
+    var n = array.length, np = predicates.length, records = new Array(n), i, j, item, types, keys;
+
+    for (i = 0; i < n; i++) {
+      if (!(i in array)) return;
+      item = array[i];
+      types = new Array(np);
+      keys = new Array(np);
+      for (j = 0; j < np; j++) {
+        var value = predicates[j].get(item);
+        var type = typeof value;
+        if (value === null) {
+          type = 'null';
+        } else if (type === 'object') {
+          value = objectValue(value);
+        }
+        if (type === 'string') {
+          value = value.toLowerCase();
+        } else if (type === 'object' && isObject(value)) {
+          // For basic objects, use the position of the object in the collection
+          value = i;
+        }
+        types[j] = type;
+        keys[j] = value;
+      }
+      records[i] = {value: item, index: i, types: types, keys: keys};
+    }
+
+    records.sort(function(r1, r2) {
+      for (var j = 0; j < np; j++) {
+        var result = 0, type1 = r1.types[j], type2 = r2.types[j];
+        if (type1 === type2) {
+          var key1 = r1.keys[j], key2 = r2.keys[j];
+          if (key1 !== key2) result = key1 < key2 ? -1 : 1;
+        } else {
+          result = compareTypes(type1, type2);
+        }
+        if (result) return result * predicates[j].descending * descending;
+      }
+      return (r1.index < r2.index ? -1 : 1) * descending;
+    });
+
+    for (i = 0; i < n; i++) records[i] = records[i].value;
+    return records;
+  }
+
+  function compareTypes(type1, type2) {
+    return (type1 === 'undefined') ? 1 :
+      (type2 === 'undefined') ? -1 :
+      (type1 === 'null') ? 1 :
+      (type2 === 'null') ? -1 :
+      (type1 < type2) ? -1 : 1;
+  }
 
   function processPredicates(sortPredicates) {
     return sortPredicates.map(function(predicate) {
@@ -697,11 +760,7 @@ function orderByFilter($parse) {
         result = value1 < value2 ? -1 : 1;
       }
     } else {
-      result = (type1 === 'undefined') ? 1 :
-        (type2 === 'undefined') ? -1 :
-        (type1 === 'null') ? 1 :
-        (type2 === 'null') ? -1 :
-        (type1 < type2) ? -1 : 1;
+      result = compareTypes(type1, type2);
     }
 
     return result;

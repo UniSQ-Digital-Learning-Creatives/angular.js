@@ -411,14 +411,12 @@ forEach(['src', 'srcset', 'href'], function(attrName) {
     return {
       priority: 99, // it needs to run after the attributes are interpolated
       link: function(scope, element, attr) {
-        var propName = attrName,
-            name = attrName;
+        var name = attrName;
 
         if (attrName === 'href' &&
             toString.call(element.prop('href')) === '[object SVGAnimatedString]') {
           name = 'xlinkHref';
           attr.$attr[name] = 'xlink:href';
-          propName = null;
         }
 
         // We need to sanitize the url at least once, in case it is a constant
@@ -434,13 +432,6 @@ forEach(['src', 'srcset', 'href'], function(attrName) {
           }
 
           attr.$set(name, value);
-
-          // Support: IE 9-11 only
-          // On IE, if "ng:src" directive declaration is used and "src" attribute doesn't exist
-          // then calling element.setAttribute('src', 'foo') doesn't do anything, so we need
-          // to set the property as well to achieve the desired effect.
-          // We use attr[attrName] value since $set might have sanitized the url.
-          if (msie && propName) element.prop(propName, attr[name]);
         });
       }
     };

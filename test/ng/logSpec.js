@@ -65,23 +65,10 @@ describe('$log', function() {
     }
   ));
 
-  runTests({ie9Mode: false});
-  runTests({ie9Mode: true});
+  runTests();
 
-  function runTests(options) {
-    var ie9Mode = options.ie9Mode;
-
+  function runTests() {
     function attachMockConsoleTo$window() {
-      // Support: IE 9 only
-      // Simulate missing apply on console methods in IE 9.
-      if (ie9Mode) {
-        log.apply = log.call =
-        warn.apply = warn.call =
-        info.apply = info.call =
-        error.apply = error.call =
-        debug.apply = debug.call = null;
-      }
-
       $window.console = {
         log: log,
         warn: warn,
@@ -91,7 +78,7 @@ describe('$log', function() {
       };
     }
 
-    describe(ie9Mode ? 'IE 9 logging behavior' : 'Modern browsers\' logging behavior', function() {
+    describe('logging behavior', function() {
       beforeEach(module(attachMockConsoleTo$window));
 
       it('should work if $window.navigator not defined', inject(
@@ -110,29 +97,24 @@ describe('$log', function() {
         expect(logger).toEqual('log;warn;info;error;debug;');
       }));
 
-      // Support: Safari 9.1 only, iOS 9.3 only
-      // For some reason Safari thinks there is always 1 parameter passed here.
-      if (!/\b9\.\d(\.\d+)* safari/i.test(window.navigator.userAgent) &&
-        !/\biphone os 9_/i.test(window.navigator.userAgent)) {
-        it('should not attempt to log the second argument in IE if it is not specified', inject(
-          function() {
-            log = function(arg1, arg2) { logger += 'log,' + arguments.length + ';'; };
-            warn = function(arg1, arg2) { logger += 'warn,' + arguments.length + ';'; };
-            info = function(arg1, arg2) { logger += 'info,' + arguments.length + ';'; };
-            error = function(arg1, arg2) { logger += 'error,' + arguments.length + ';'; };
-            debug = function(arg1, arg2) { logger += 'debug,' + arguments.length + ';'; };
-          },
-          attachMockConsoleTo$window,
-          function($log) {
-            $log.log();
-            $log.warn();
-            $log.info();
-            $log.error();
-            $log.debug();
-            expect(logger).toEqual('log,0;warn,0;info,0;error,0;debug,0;');
-          })
-        );
-      }
+      it('should not pass on arguments that were not specified', inject(
+        function() {
+          log = function(arg1, arg2) { logger += 'log,' + arguments.length + ';'; };
+          warn = function(arg1, arg2) { logger += 'warn,' + arguments.length + ';'; };
+          info = function(arg1, arg2) { logger += 'info,' + arguments.length + ';'; };
+          error = function(arg1, arg2) { logger += 'error,' + arguments.length + ';'; };
+          debug = function(arg1, arg2) { logger += 'debug,' + arguments.length + ';'; };
+        },
+        attachMockConsoleTo$window,
+        function($log) {
+          $log.log();
+          $log.warn();
+          $log.info();
+          $log.error();
+          $log.debug();
+          expect(logger).toEqual('log,0;warn,0;info,0;error,0;debug,0;');
+        })
+      );
 
       describe('$log.debug', function() {
 
@@ -189,26 +171,18 @@ describe('$log', function() {
           expect($window.console.error).toHaveBeenCalledWith('abc', e);
         });
 
-        if (msie || /\bEdge\//.test(window.navigator.userAgent)) {
-          it('should print stack', function() {
-            e.stack = 'stack';
-            $log.error('abc', e);
-            expect($window.console.error).toHaveBeenCalledWith('abc', 'stack');
-          });
-        } else {
-          it('should print a raw error', function() {
-            e.stack = 'stack';
-            $log.error('abc', e);
-            expect($window.console.error).toHaveBeenCalledWith('abc', e);
-          });
-        }
+        it('should print a raw error', function() {
+          e.stack = 'stack';
+          $log.error('abc', e);
+          expect($window.console.error).toHaveBeenCalledWith('abc', e);
+        });
 
-        it('should print line', function() {
+        it('should print a raw error even when it carries Safari\'s sourceURL/line', function() {
           e.message = 'message';
           e.sourceURL = 'sourceURL';
           e.line = '123';
           $log.error('abc', e);
-          expect($window.console.error).toHaveBeenCalledWith('abc', 'message\nsourceURL:123');
+          expect($window.console.error).toHaveBeenCalledWith('abc', e);
         });
       });
     });

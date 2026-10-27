@@ -1,8 +1,6 @@
 /* global jQuery: true, uid: true, jqCache: true */
 'use strict';
 
-if (window.bindJQuery) bindJQuery();
-
 beforeEach(function() {
 
   // all this stuff is not needed for module tests, where jqlite and publishExternalAPI and jqLite are not global vars
@@ -11,9 +9,6 @@ beforeEach(function() {
 
     // This resets global id counter;
     uid = 0;
-
-    // reset to jQuery or default to us.
-    bindJQuery();
 
     // Clear the cache to prevent memory leak failures from previous tests
     // breaking subsequent tests unnecessarily

@@ -65,6 +65,35 @@ var $$CoreAnimateQueueProvider = /** @this */ function() {
 
   this.$get = ['$$AnimateRunner', '$rootScope',
        function($$AnimateRunner,   $rootScope) {
+    // Without ngAnimate there is nothing to animate, so every runner handed out is already
+    // complete. Almost no caller (ngRepeat, ngShow, ngClass, validity classes...) ever looks at it,
+    // so only build the real runner - which allocates several closures and schedules a rAF tick -
+    // the first time someone does.
+    function CompletedRunner() {
+      this.$$runner = null;
+    }
+    function getRunner(lazy) {
+      if (!lazy.$$runner) {
+        lazy.$$runner = new $$AnimateRunner();
+        lazy.$$runner.complete();
+      }
+      return lazy.$$runner;
+    }
+    CompletedRunner.prototype = {
+      setHost: function(host) { getRunner(this).setHost(host); },
+      done: function(fn) { getRunner(this).done(fn); },
+      progress: noop,
+      getPromise: function() { return getRunner(this).getPromise(); },
+      then: function(resolve, reject) { return getRunner(this).then(resolve, reject); },
+      'catch': function(handler) { return getRunner(this)['catch'](handler); },
+      'finally': function(handler) { return getRunner(this)['finally'](handler); },
+      pause: function() { getRunner(this).pause(); },
+      resume: function() { getRunner(this).resume(); },
+      end: function() { getRunner(this).end(); },
+      cancel: function() { getRunner(this).cancel(); },
+      complete: function(response) { getRunner(this).complete(response); }
+    };
+
     return {
       enabled: noop,
       on: noop,
@@ -88,12 +117,7 @@ var $$CoreAnimateQueueProvider = /** @this */ function() {
           addRemoveClassesPostDigest(element, options.addClass, options.removeClass);
         }
 
-        var runner = new $$AnimateRunner();
-
-        // since there are no animations to run the runner needs to be
-        // notified that the animation call is complete.
-        runner.complete();
-        return runner;
+        return new CompletedRunner();
       }
     };
 
@@ -117,7 +141,9 @@ var $$CoreAnimateQueueProvider = /** @this */ function() {
       forEach(postDigestElements, function(element) {
         var data = postDigestQueue.get(element);
         if (data) {
-          var existing = splitClasses(element.attr('class'));
+          var node = element[0];
+          var existing = splitClasses(node && node.nodeType === NODE_TYPE_ELEMENT ?
+              node.getAttribute('class') : null);
           var toAdd = '';
           var toRemove = '';
           forEach(data, function(status, className) {
@@ -322,7 +348,31 @@ var $AnimateProvider = ['$provide', /** @this */ function($provide) {
           afterElement = null;
         }
       }
-      if (afterElement) {
+      var target = afterElement || parentElement;
+      var nodes = element && element.nodeType ? [element] : element;
+
+      // Insert with plain DOM calls rather than the wrapper's `after()`/`prepend()`; defer to the
+      // wrapper only for multi-node targets and string content.
+      if (target && target.length === 1 && nodes && !isString(nodes)) {
+        var targetNode = target[0];
+        var i, ii = nodes.length;
+        if (afterElement) {
+          var parent = targetNode.parentNode;
+          if (parent) {
+            for (i = 0; i < ii; i++) {
+              parent.insertBefore(nodes[i], targetNode.nextSibling);
+              targetNode = nodes[i];
+            }
+          }
+        } else if (targetNode.nodeType === NODE_TYPE_ELEMENT ||
+                   targetNode.nodeType === NODE_TYPE_DOCUMENT_FRAGMENT ||
+                   targetNode.nodeType === NODE_TYPE_DOCUMENT) {
+          var firstChild = targetNode.firstChild;
+          for (i = 0; i < ii; i++) {
+            targetNode.insertBefore(nodes[i], firstChild);
+          }
+        }
+      } else if (afterElement) {
         afterElement.after(element);
       } else {
         parentElement.prepend(element);

@@ -1,0 +1,50 @@
+diff -ruN a/src/jqLite.js b/src/jqLite.js
+--- a/src/jqLite.js	2026-10-25 08:50:08.005923259 +1000
++++ b/src/jqLite.js	2026-10-25 09:39:06.177382612 +1000
+@@ -533,12 +533,20 @@
+     // Plain jqLite (no jQuery): read the element's data store directly instead of going through
+     // jqLiteData for every ancestor. Only elements/documents can have a store, so reading the expando
+     // of any other node simply gives undefined.
++    for (i = 0; i < ii; i++) {
++      if (names[i].indexOf('-') !== -1) {
++        names = names.slice();
++        for (i = 0; i < ii; i++) names[i] = kebabToCamel(names[i]);
++        break;
++      }
++    }
++
+     while (element) {
+       store = element.ng339;
+       store = store && jqCache[store];
+       if (store) {
+         for (i = 0; i < ii; i++) {
+-          if (isDefined(value = store.data[kebabToCamel(names[i])])) return value;
++          if (isDefined(value = store.data[names[i]])) return value;
+         }
+       }
+       element = element.parentNode || (element.nodeType === NODE_TYPE_DOCUMENT_FRAGMENT && element.host);
+diff -ruN a/src/ng/directive/ngInclude.js b/src/ng/directive/ngInclude.js
+--- a/src/ng/directive/ngInclude.js	2026-10-25 08:50:01.408831981 +1000
++++ b/src/ng/directive/ngInclude.js	2026-10-25 09:39:06.177756817 +1000
+@@ -184,8 +184,8 @@
+  * @param {Object} angularEvent Synthetic event object.
+  * @param {String} src URL of content to load.
+  */
+-var ngIncludeDirective = ['$templateRequest', '$anchorScroll', '$animate',
+-                  function($templateRequest,   $anchorScroll,   $animate) {
++var ngIncludeDirective = ['$templateRequest', '$injector', '$animate',
++                  function($templateRequest,   $injector,   $animate) {
+   return {
+     restrict: 'ECA',
+     priority: 400,
+@@ -225,7 +225,9 @@
+           var afterAnimation = function(response) {
+             if (response !== false && isDefined(autoScrollExp) &&
+               (!autoScrollExp || scope.$eval(autoScrollExp))) {
+-                $anchorScroll();
++                // Looked up only now: $anchorScroll brings $location (with its URL listeners and its
++                // $rootScope watchers, run on every digest) along.
++                $injector.get('$anchorScroll')();
+             }
+           };
+           var thisChangeId = ++changeCounter;

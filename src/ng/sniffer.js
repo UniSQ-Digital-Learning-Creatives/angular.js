@@ -42,10 +42,8 @@ function $SnifferProvider() {
         animations = false;
 
     if (bodyStyle) {
-      // Support: Android <5, Blackberry Browser 10, default Chrome in Android 4.4.x
-      // Mentioned browsers need a -webkit- prefix for transitions & animations.
-      transitions = !!('transition' in bodyStyle || 'webkitTransition' in bodyStyle);
-      animations = !!('animation' in bodyStyle || 'webkitAnimation' in bodyStyle);
+      transitions = 'transition' in bodyStyle;
+      animations = 'animation' in bodyStyle;
     }
 
 
@@ -60,14 +58,6 @@ function $SnifferProvider() {
       // We are purposefully using `!(android < 4)` to cover the case when `android` is undefined
       history: !!(hasHistoryPushState && !(android < 4) && !boxee),
       hasEvent: function(event) {
-        // Support: IE 9-11 only
-        // IE9 implements 'input' event it's so fubared that we rather pretend that it doesn't have
-        // it. In particular the event is not fired when backspace or delete key are pressed or
-        // when cut operation is performed.
-        // IE10+ implements 'input' event but it erroneously fires under various situations,
-        // e.g. when placeholder changes, or a form is focused.
-        if (event === 'input' && msie) return false;
-
         if (isUndefined(eventSupport[event])) {
           var divElm = document.createElement('div');
           eventSupport[event] = 'on' + event in divElm;

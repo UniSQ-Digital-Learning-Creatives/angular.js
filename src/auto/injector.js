@@ -915,9 +915,7 @@ function createInjector(modulesToLoad, strictDi) {
     }
 
     function isClass(func) {
-      // Support: IE 9-11 only
-      // IE 9-11 do not support classes and IE9 leaks with the code below.
-      if (msie || typeof func !== 'function') {
+      if (typeof func !== 'function') {
         return false;
       }
       var result = func.$$ngIsClass;
@@ -943,8 +941,7 @@ function createInjector(modulesToLoad, strictDi) {
         // #5388
         return fn.apply(self, args);
       } else {
-        args.unshift(null);
-        return new (Function.prototype.bind.apply(fn, args))();
+        return window.Reflect.construct(fn, args);
       }
     }
 
@@ -954,9 +951,7 @@ function createInjector(modulesToLoad, strictDi) {
       // e.g. someModule.factory('greeter', ['$window', function(renamed$window) {}]);
       var ctor = (isArray(Type) ? Type[Type.length - 1] : Type);
       var args = injectionArgs(Type, locals, serviceName);
-      // Empty object at position 0 is ignored for invocation with `new`, but required.
-      args.unshift(null);
-      return new (Function.prototype.bind.apply(ctor, args))();
+      return window.Reflect.construct(ctor, args);
     }
 
 

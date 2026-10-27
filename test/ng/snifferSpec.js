@@ -209,19 +209,6 @@ describe('$sniffer', function() {
     });
 
 
-    it('should be true with -webkit-prefixed animations', function() {
-      var animationStyle = 'some_animation 2s linear';
-      var mockDocument = {
-        body: {
-          style: {
-            webkitAnimation: animationStyle
-          }
-        }
-      };
-
-      expect(sniffer({}, mockDocument).animations).toBe(true);
-    });
-
 
     it('should be true with w3c-style animations', function() {
       var mockDocument = {
@@ -235,23 +222,6 @@ describe('$sniffer', function() {
       expect(sniffer({}, mockDocument).animations).toBe(true);
     });
 
-
-    it('should be true on android with older body style properties', function() {
-      var mockWindow = {
-        navigator: {
-          userAgent: 'android 2'
-        }
-      };
-      var mockDocument = {
-        body: {
-          style: {
-            webkitAnimation: ''
-          }
-        }
-      };
-
-      expect(sniffer(mockWindow, mockDocument).animations).toBe(true);
-    });
 
 
     it('should be true when an older version of Webkit is used', function() {
@@ -285,19 +255,6 @@ describe('$sniffer', function() {
     });
 
 
-    it('should be true with -webkit-prefixed transitions', function() {
-      var transitionStyle = '1s linear all';
-      var mockDocument = {
-        body: {
-          style: {
-            webkitTransition: transitionStyle
-          }
-        }
-      };
-
-      expect(sniffer({}, mockDocument).transitions).toBe(true);
-    });
-
 
     it('should be true with w3c-style transitions', function() {
       var mockDocument = {
@@ -312,22 +269,6 @@ describe('$sniffer', function() {
     });
 
 
-    it('should be true on android with older body style properties', function() {
-      var mockWindow = {
-        navigator: {
-          userAgent: 'android 2'
-        }
-      };
-      var mockDocument = {
-        body: {
-          style: {
-            webkitTransition: ''
-          }
-        }
-      };
-
-      expect(sniffer(mockWindow, mockDocument).transitions).toBe(true);
-    });
   });
 
 

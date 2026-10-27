@@ -197,7 +197,13 @@ function Browser(window, document, $log, $sniffer, $$taskTrackerFactory) {
     var prevLastHistoryState = lastHistoryState;
     cacheState();
 
-    if (lastBrowserUrl === self.url() && prevLastHistoryState === cachedState) {
+    // Runs at the start of every digest, so check for a change without `self.url()`'s
+    // stale-reference reads and regex. Same result as `self.url()`'s getter.
+    var currentUrl = pendingLocation || location.href;
+    if (currentUrl.charCodeAt(currentUrl.length - 1) === 35 /* # */) {
+      currentUrl = currentUrl.slice(0, -1);
+    }
+    if (lastBrowserUrl === currentUrl && prevLastHistoryState === cachedState) {
       return;
     }
 

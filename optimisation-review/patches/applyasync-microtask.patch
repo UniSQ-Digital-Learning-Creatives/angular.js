@@ -1,0 +1,28 @@
+diff -ruN a/src/ng/rootScope.js b/src/ng/rootScope.js
+--- a/src/ng/rootScope.js	2026-10-25 08:51:12.180551390 +1000
++++ b/src/ng/rootScope.js	2026-10-25 09:39:07.454544569 +1000
+@@ -819,7 +819,7 @@
+         if (this === $rootScope && applyAsyncId !== null) {
+           // If this is the root scope, and $applyAsync has scheduled a deferred $apply(), then
+           // cancel the scheduled $apply and flush the queue of expressions to be evaluated.
+-          $browser.defer.cancel(applyAsyncId);
++          applyAsyncId = null;
+           flushApplyAsync();
+         }
+ 
+@@ -1552,9 +1552,12 @@
+ 
+     function scheduleApplyAsync() {
+       if (applyAsyncId === null) {
+-        applyAsyncId = $browser.defer(function() {
+-          $rootScope.$apply(flushApplyAsync);
+-        }, null, '$applyAsync');
++        // EXPERIMENTAL (breaking): flush at the end of the current task (microtask) rather than
++        // after a setTimeout(0), which costs 1-4ms of latency per batch.
++        var token = applyAsyncId = {};
++        window.queueMicrotask(function() {
++          if (applyAsyncId === token) $rootScope.$apply(flushApplyAsync);
++        });
+       }
+     }
+   }];

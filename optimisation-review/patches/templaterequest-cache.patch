@@ -1,0 +1,53 @@
+diff -ruN a/src/ng/templateRequest.js b/src/ng/templateRequest.js
+--- a/src/ng/templateRequest.js	2026-07-24 10:44:53.046584110 +1000
++++ b/src/ng/templateRequest.js	2026-10-25 09:39:06.616750568 +1000
+@@ -70,6 +70,14 @@
+     function($exceptionHandler, $templateCache, $http, $q, $sce) {
+ 
+       function handleRequestFn(tpl, ignoreRequestError) {
++        // A template that has been loaded before sits in the cache as a plain string: answer from it
++        // without running a whole $http request (request interceptors, pending request count,
++        // promise chain) for every ngInclude / directive using it.
++        if (isString(tpl)) {
++          var cachedTemplate = $templateCache.get(tpl);
++          if (isString(cachedTemplate)) return $q.resolve(cachedTemplate);
++        }
++
+         handleRequestFn.totalPendingRequests++;
+ 
+         // We consider the template cache holds only trusted templates, so
+diff -ruN a/test/ng/templateRequestSpec.js b/test/ng/templateRequestSpec.js
+--- a/test/ng/templateRequestSpec.js	2026-07-24 10:44:53.079033001 +1000
++++ b/test/ng/templateRequestSpec.js	2026-10-25 09:39:06.617089643 +1000
+@@ -289,4 +289,31 @@
+       expect(spy).toHaveBeenCalledOnceWith('{{text}}!!');
+     });
+   });
++
++  describe('templates that were already loaded', function() {
++    it('should be answered from the cache without going through $http (and its interceptors) again',
++        function() {
++      var intercepted = 0;
++      module(function($httpProvider) {
++        $httpProvider.interceptors.push(function() {
++          return {request: function(config) { intercepted++; return config; }};
++        });
++      });
++      inject(function($rootScope, $templateRequest, $templateCache, $httpBackend) {
++        var results = [];
++        $httpBackend.expectGET('tpl.html').respond('<p>hi</p>');
++        $templateRequest('tpl.html').then(function(html) { results.push(html); });
++        $httpBackend.flush();
++        expect(intercepted).toBe(1);
++
++        $templateRequest('tpl.html').then(function(html) { results.push(html); });
++        expect($templateRequest.totalPendingRequests).toBe(0);
++        $rootScope.$digest();
++
++        expect(results).toEqual(['<p>hi</p>', '<p>hi</p>']);
++        expect(intercepted).toBe(1);
++        $httpBackend.verifyNoOutstandingRequest();
++      });
++    });
++  });
+ });

@@ -184,8 +184,8 @@
  * @param {Object} angularEvent Synthetic event object.
  * @param {String} src URL of content to load.
  */
-var ngIncludeDirective = ['$templateRequest', '$anchorScroll', '$animate',
-                  function($templateRequest,   $anchorScroll,   $animate) {
+var ngIncludeDirective = ['$templateRequest', '$injector', '$animate',
+                  function($templateRequest,   $injector,   $animate) {
   return {
     restrict: 'ECA',
     priority: 400,
@@ -225,7 +225,9 @@ var ngIncludeDirective = ['$templateRequest', '$anchorScroll', '$animate',
           var afterAnimation = function(response) {
             if (response !== false && isDefined(autoScrollExp) &&
               (!autoScrollExp || scope.$eval(autoScrollExp))) {
-                $anchorScroll();
+                // Looked up only now: $anchorScroll brings $location (with its URL listeners and its
+                // $rootScope watchers, run on every digest) along.
+                $injector.get('$anchorScroll')();
             }
           };
           var thisChangeId = ++changeCounter;
@@ -282,6 +284,17 @@ var ngIncludeDirective = ['$templateRequest', '$anchorScroll', '$animate',
 // is called.
 var ngIncludeFillContentDirective = ['$compile',
   function($compile) {
+    // Compiled linkers for templates that have been included more than once (keyed by the template
+    // text, so a changed $templateCache entry is never served stale). The first inclusion of a
+    // template takes the plain "innerHTML + compile in place" path (no extra cost for templates that
+    // are only included once); from the second inclusion on, the template is compiled once into a
+    // detached fragment and every instance is a cloneNode + link, skipping HTML parsing and
+    // directive collection. A `null` value means "seen once". Bounded so that dynamically generated
+    // template strings can not grow it without limit.
+    var includeLinkers = new window.Map();
+    var MAX_INCLUDE_LINKERS = 100;
+    var UNCACHEABLE_TEMPLATE_REGEXP = /<script/i;
+
     return {
       restrict: 'ECA',
       priority: -400,
@@ -299,8 +312,38 @@ var ngIncludeFillContentDirective = ['$compile',
           return;
         }
 
-        $element.html(ctrl.template);
-        $compile($element.contents())(scope);
+        var template = ctrl.template;
+        var linker = includeLinkers.get(template);
+
+        if (linker) {
+          $element.empty();
+          linker(scope, function(clone) {
+            $element.append(clone);
+          });
+          return;
+        }
+
+        $element.html(template);
+
+        if (linker === undefined) {
+          // First time this template is included: remember it, link in place as usual.
+          if (includeLinkers.size < MAX_INCLUDE_LINKERS && isString(template) &&
+              !UNCACHEABLE_TEMPLATE_REGEXP.test(template)) {
+            includeLinkers.set(template, null);
+          }
+          $compile($element.contents())(scope);
+          return;
+        }
+
+        // Second time: compile the freshly parsed nodes once, detached, and keep the linker.
+        var fragment = window.document.createDocumentFragment();
+        var element = $element[0];
+        while (element.firstChild) fragment.appendChild(element.firstChild);
+        linker = $compile(fragment.childNodes);
+        includeLinkers.set(template, linker);
+        linker(scope, function(clone) {
+          $element.append(clone);
+        });
       }
     };
   }];

@@ -67,7 +67,7 @@
  * - [`detach()`](http://api.jquery.com/detach/)
  * - [`empty()`](http://api.jquery.com/empty/)
  * - [`eq()`](http://api.jquery.com/eq/)
- * - [`find()`](http://api.jquery.com/find/) - Limited to lookups by tag name
+ * - [`find()`](http://api.jquery.com/find/) - Takes a CSS selector (via `querySelectorAll`), but not jQuery-only extensions such as `:has()`/`:visible`
  * - [`hasClass()`](http://api.jquery.com/hasClass/)
  * - [`html()`](http://api.jquery.com/html/)
  * - [`next()`](http://api.jquery.com/next/) - Does not support selectors
@@ -131,6 +131,7 @@
  * @returns {Object} jQuery object.
  */
 
+jqLite = JQLite;
 JQLite.expando = 'ng339';
 
 var jqCache = JQLite.cache = {},
@@ -170,8 +171,8 @@ function fnCamelCaseReplace(all, letter) {
  * @param name Name to normalize
  */
 function kebabToCamel(name) {
-  return name
-    .replace(DASH_LOWERCASE_REGEXP, fnCamelCaseReplace);
+  // Most names have no dash at all; a plain indexOf is much cheaper than running the regexp
+  return name.indexOf('-') === -1 ? name : name.replace(DASH_LOWERCASE_REGEXP, fnCamelCaseReplace);
 }
 
 var SINGLE_TAG_REGEXP = /^<([\w-]+)\s*\/?>(?:<\/\1>|)$/;
@@ -193,22 +194,6 @@ var wrapMap = {
 
 wrapMap.tbody = wrapMap.tfoot = wrapMap.colgroup = wrapMap.caption = wrapMap.thead;
 wrapMap.th = wrapMap.td;
-
-// Support: IE <10 only
-// IE 9 requires an option wrapper & it needs to have the whole table structure
-// set up in advance; assigning `"<td></td>"` to `tr.innerHTML` doesn't work, etc.
-var wrapMapIE9 = {
-  option: [1, '<select multiple="multiple">', '</select>'],
-  _default: [0, '', '']
-};
-
-for (var key in wrapMap) {
-  var wrapMapValueClosing = wrapMap[key];
-  var wrapMapValue = wrapMapValueClosing.slice().reverse();
-  wrapMapIE9[key] = [wrapMapValue.length, '<' + wrapMapValue.join('><') + '>', '</' + wrapMapValueClosing.join('></') + '>'];
-}
-
-wrapMapIE9.optgroup = wrapMapIE9.option;
 
 function jqLiteIsTextNode(html) {
   return !HTML_REGEXP.test(html);
@@ -244,27 +229,16 @@ function jqLiteBuildFragment(html, context) {
       html.replace(XHTML_TAG_REGEXP, '<$1></$2>') :
       html;
 
-    if (msie < 10) {
-      wrap = wrapMapIE9[tag] || wrapMapIE9._default;
-      tmp.innerHTML = wrap[1] + finalHtml + wrap[2];
+    wrap = wrapMap[tag] || [];
 
-      // Descend through wrappers to the right content
-      i = wrap[0];
-      while (i--) {
-        tmp = tmp.firstChild;
-      }
-    } else {
-      wrap = wrapMap[tag] || [];
-
-      // Create wrappers & descend into them
-      i = wrap.length;
-      while (--i > -1) {
-        tmp.appendChild(window.document.createElement(wrap[i]));
-        tmp = tmp.firstChild;
-      }
-
-      tmp.innerHTML = finalHtml;
+    // Create wrappers & descend into them
+    i = wrap.length;
+    while (--i > -1) {
+      tmp.appendChild(window.document.createElement(wrap[i]));
+      tmp = tmp.firstChild;
     }
+
+    tmp.innerHTML = finalHtml;
 
     nodes = concat(nodes, tmp.childNodes);
 
@@ -274,7 +248,6 @@ function jqLiteBuildFragment(html, context) {
 
   // Remove wrapper from fragment
   fragment.textContent = '';
-  fragment.innerHTML = ''; // Clear inner HTML
   forEach(nodes, function(node) {
     fragment.appendChild(node);
   });
@@ -349,7 +322,8 @@ function jqLiteClone(element) {
 function jqLiteDealoc(element, onlyDescendants) {
   if (!onlyDescendants && jqLiteAcceptsData(element)) jqLite.cleanData([element]);
 
-  if (element.querySelectorAll) {
+  // (Nothing to clean when there are no descendant elements, which is the case for most nodes.)
+  if (element.firstElementChild) {
     jqLite.cleanData(element.querySelectorAll('*'));
   }
 }
@@ -554,9 +528,35 @@ function jqLiteInheritedData(element, name, value) {
     element = element.documentElement;
   }
   var names = isArray(name) ? name : [name];
+  var i, ii = names.length, store;
+
+  if (jqLite.data === jqLiteData) {
+    // Plain jqLite (no jQuery): read the element's data store directly instead of going through
+    // jqLiteData for every ancestor. Only elements/documents can have a store, so reading the expando
+    // of any other node simply gives undefined.
+    for (i = 0; i < ii; i++) {
+      if (names[i].indexOf('-') !== -1) {
+        names = names.slice();
+        for (i = 0; i < ii; i++) names[i] = kebabToCamel(names[i]);
+        break;
+      }
+    }
+
+    while (element) {
+      store = element.ng339;
+      store = store && jqCache[store];
+      if (store) {
+        for (i = 0; i < ii; i++) {
+          if (isDefined(value = store.data[names[i]])) return value;
+        }
+      }
+      element = element.parentNode || (element.nodeType === NODE_TYPE_DOCUMENT_FRAGMENT && element.host);
+    }
+    return;
+  }
 
   while (element) {
-    for (var i = 0, ii = names.length; i < ii; i++) {
+    for (i = 0; i < ii; i++) {
       if (isDefined(value = jqLite.data(element, names[i]))) return value;
     }
 
@@ -675,9 +675,34 @@ forEach({
   removeData: jqLiteRemoveData,
   hasData: jqLiteHasData,
   cleanData: function jqLiteCleanData(nodes) {
-    for (var i = 0, ii = nodes.length; i < ii; i++) {
-      jqLiteRemoveData(nodes[i]);
-      jqLiteOff(nodes[i]);
+    var i, ii = nodes.length, id, store, events, type;
+
+    // First give every node the chance to react to its removal (the data of all of them is still
+    // available while the `$destroy` handlers run)...
+    for (i = 0; i < ii; i++) {
+      id = nodes[i].ng339;
+      store = id && jqCache[id];
+      if (store && store.events.$destroy) {
+        jqLite(nodes[i]).triggerHandler('$destroy');
+      }
+    }
+
+    // ...then drop all their data and handlers. The native listeners are left attached: once the
+    // handler lists are emptied the (shared) event handle does nothing, and the node is on its way
+    // to garbage collection anyway, so removing each one with removeEventListener is wasted work.
+    for (i = 0; i < ii; i++) {
+      id = nodes[i].ng339;
+      if (id) {
+        store = jqCache[id];
+        if (store) {
+          events = store.events;
+          for (type in events) {
+            delete events[type];
+          }
+          delete jqCache[id];
+        }
+        nodes[i].ng339 = undefined;
+      }
     }
   }
 }, function(fn, name) {
@@ -1104,8 +1129,8 @@ forEach({
   },
 
   find: function(element, selector) {
-    if (element.getElementsByTagName) {
-      return element.getElementsByTagName(selector);
+    if (element.querySelectorAll) {
+      return element.querySelectorAll(selector);
     } else {
       return [];
     }

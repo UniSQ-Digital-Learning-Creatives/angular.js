@@ -1,0 +1,386 @@
+=== course-development-checklist
+index.js LICENSE node_modules nodemon.json package.json package-lock.json public README.md tasks.md 
+course-development-checklist/index.js 221
+1:let port = 3019,
+3:	appName = "leap-content-checklist",
+9:	router = new express.Router(),
+23:app.use(cors())
+169:router.use(cacheHeaders.stampGate)
+177:router.use(express.static(`${__dirname}/public`, cacheHeaders.staticOptions))
+180:app.use(`/${appName}`, router)
+214:	app.listen(port, () => {
+=== course-development-reports
+index.js LICENSE node_modules nodemon.json package.json package-lock.json public README.md 
+course-development-reports/index.js 502
+1:let port = 3081,
+5:	router = new express.Router(),
+60:app.use(cors())
+421:router.use(cacheHeaders.stampGate)
+429:router.use(express.static(`${__dirname}/public`, cacheHeaders.staticOptions))
+432:app.use('/course-development-reports', router)
+446:	app.listen(port, () => console.log(`App started on port:`, port))
+=== media-catalogue
+index.js LICENSE node_modules nodemon.json package.json package-lock.json photos process-sync-photos.js public README.md res 
+media-catalogue/index.js 1625
+1:let port = 3016,
+3:	appName = 'media-catalogue',
+15:	router = new express.Router(),
+1518:app.use(cors())
+1519:app.use(bodyParser.urlencoded({extended: true}))
+1520:app.use(bodyParser.json())
+1524:app.use((req, res, next) => {
+1532:router.use(cacheHeaders.stampGate)
+1542:router.use('/photos/download', (req, res, next) => {
+1554:}, express.static(photoDirectory))
+1555:router.use('/photos', express.static(photoDirectory))
+1584:router.use(express.static(`${__dirname}/public`, cacheHeaders.staticOptions))
+1586:app.use(`/${appName}`, router)
+1588:app.use(`/${appName}-test`, router)
+1590:app.use('/photography-gallery', router)
+1615:	app.listen(port, (err) => {
+=== podcast-manager
+apis email.js html index.js LICENSE node_modules nodemon.json package.json package-lock.json README.md uploads 
+podcast-manager/index.js 267
+1:let port = 3038,
+3:	appName = 'podcast-manager',
+6:	router = new express.Router(),
+188:global.appName = appName
+199:app.use(cors())
+203:app.use((req, res, next) => {
+212:router.use('/api/episodes', require('./apis/episodes.js'))
+215:router.use('/api/podcasts', require('./apis/podcasts.js'))
+218:router.use('/api/data', require('./apis/data.js'))
+221:router.use(cacheHeaders.stampGate)
+224:router.use(express.static(`${__dirname}/html`, cacheHeaders.staticOptions))
+227:app.use(`/${appName}`, router)
+258:	app.listen(port, () => {
+=== si-admin
+index.js LICENSE lti-analytics.ingest.json node_modules nodemon.json package.json package-lock.json public README.md 
+si-admin/index.js 467
+3:let port = 3031,
+5:	appName = "admin",
+8:	router = new express.Router(),
+95:router.use(cors())
+99:router.use(bodyParser.urlencoded({extended: true}))
+103:router.use((req, res, next) => {
+430:router.use(cacheHeaders.stampGate)
+438:router.use(express.static(`${__dirname}/public`, cacheHeaders.staticOptions))
+442:app.use(`/${appName}`, router)
+461:	app.listen(port, () => {
+=== si-analytics
+index.js LICENSE node_modules package.json package-lock.json public README.md 
+si-analytics/index.js 1394
+1:let port = 3004,
+3:	appName = "analytics",
+6:	router = new express.Router(),
+870:app.use(cors())
+873:app.use(bodyParser.urlencoded({extended: false}))
+877:app.use((req, res, next) => {
+891:router.use('/ingest', cacheHeaders.api, async (req, res, next) => {
+1017:router.use('/ingest-bulk', cacheHeaders.api, async (req, res, next) => {
+1174:router.use('/fetch', cacheHeaders.api, async (req, res) => {
+1184:router.use('/fetch-stats', cacheHeaders.api, async (req, res) => {
+1284:			let appName = appNameCrossReferenceForReport[ilars[i]]
+1294:			if (appName === "Photography Catalogue" || appName === "Media Catalogue") {
+1299:			else if (appName === "Checklist") {
+1308:			let appName = toolboxAppNameCrossReferenceForReport[toolboxItems[i]],
+1313:			if (appName === "Buttons and Tiles") {
+1318:			if (appName === "Text Styles") {
+1363:router.use('/fetch-data-vimeo', async (req, res) => {
+1368:router.use('/fetch-data-panopto', async (req, res) => {
+1373:app.use(`/${appName}`, router)
+1387:	app.listen(port, () => {
+=== si-manager
+build-notification-icons.js cache CLAUDE.md Folder.DotSettings.user index.js libs LICENSE node_modules nodemon.json package.json package-lock.json public README.md references uploads 
+si-manager/index.js 1518
+1:let port = 3000,
+4:	appName = 'manager',
+169:	publicFilesStatic = express.static(`${__dirname}/public`, cacheHeaders.staticOptions),
+173:	statusPageStatic = express.static(`${__dirname}/public/status-dashboard`, cacheHeaders.staticOptions),
+834:app.use(cors())
+838:app.use((req, res, next) => {
+849:app.use('/node_modules', express.static(`${__dirname}/node_modules`, {
+856:app.use(cacheHeaders.stampGate)
+858:app.use(statusPageStatic)
+859:app.use(['/toolbox-server-status'], statusPageStatic)
+862:app.use('/status-data', async (req, res, next) => {
+927:app.use('/utilities.js', (req, res) => {
+933:app.use(['/ilar-manager', '/ilar-manager.js'], (req, res) => {
+946:app.use(publicFilesStatic)
+947:app.use('/assets/', publicFilesStatic)
+950:app.use('/save-settings', upload.any(), async (req, res) => {
+972:app.use('/fetch-settings', async (req, res) => {
+993:app.use('/fetch-new-messages', async (req, res) => {
+1008:app.use('/initialize', bodyParser.urlencoded({extended: true}), (req, res, next) => {
+1147:app.use('/courses-and-schools.json', async (req, res) => {
+1171:app.use('/schools.json', async (req, res) => {
+1202:app.use('/versions.json', async (req, res) => {
+1290:app.use('/fetch-checklist-whitelist', async (req, res) => {
+1306:app.use('/fetch-checklist-whitelist-single', async (req, res) => {
+1324:app.use('/get-user-data', async (req, res) => {
+1334:app.use('/set-user-data', bodyParser.urlencoded({extended: true}), (req, res) => {
+1363:app.use('/command', (req, res) => {
+1382:app.use((req, res, next) => {
+1510:	app.listen(port, () => {
+=== si-photography-catalogue
+index.js LICENSE node_modules nodemon.json package.json package-lock.json public README.md res spawn-exif.js tags.json temp 
+si-photography-catalogue/index.js 274
+1:let port = 3099,
+3:	appName = "photography-gallery",
+6:	router = new express.Router(),
+103:app.use(cors())
+106:router.use('/photos',
+115:	express.static(`${__dirname}/photos`, {
+127:router.use('/list', (req, res) => {
+135:router.use('/single', (req, res) => {
+140:router.use('/update-views', async (req, res) => {
+161:router.use('/update-downloads', async (req, res) => {
+182:router.use('/update-favourite', async (req, res) => {
+216:router.use(cacheHeaders.stampGate)
+225:router.use(express.static(`${__dirname}/public`, cacheHeaders.staticOptions))
+228:app.use(`/${appName}`, router)
+231:app.use(`/media-catalogue`, router)
+269:			app.listen(port, () => console.log(`App started on port:`, port))
+=== si-studydesk-styles
+backups CLAUDE.md index.js node_modules nodemon.json package.json package-lock.json public README.md styles temp temp-dev website 
+si-studydesk-styles/index.js 567
+1:let port = 3005,
+3:	appName = "styles",
+8:	router = new express.Router(),
+34://express.static streams these files to browsers while we're replacing them, and a plain writeFile
+150:	//express.static, so an uploaded .html or .js would come back from /styles/<name> on the suite's
+345:app.use(cors())
+349:app.use(express.urlencoded({extended: false, limit: '2mb'}))
+350:app.use(express.json({limit: '2mb'}))
+506:router.use(cacheHeaders.stampGate)
+508:router.use(express.static(stylesDirectory, serveStaticOptions))
+512:router.use(express.static(publicDirectory, serveStaticOptions))
+517:router.use('/admin', express.static(websiteDirectory))
+519:router.use(handleErrors)
+522:app.use(`/${appName}`, router)
+526:app.use(handleErrors)
+560:	app.listen(port, () => {
+=== toolbox-3d-model-viewer
+index.js LICENSE node_modules nodemon.json package.json package-lock.json public README.md res TODO.md uploads 
+toolbox-3d-model-viewer/index.js 585
+1:let port = 3014,
+3:	appName = '3d-model-viewer',
+11:	router = new express.Router(),
+114:app.use(cors())
+118:router.use(cacheHeaders.stampGate)
+126:router.use(express.static(`${__dirname}/public`, cacheHeaders.staticOptions))
+129:router.use(bodyParser.urlencoded({extended: true}))
+561:app.use(`/${appName}`, router)
+579:	app.listen(port, () => {
+=== toolbox-course-roadmap
+index.js LICENSE node_modules nodemon.json package.json package-lock.json public README.md res uploads 
+toolbox-course-roadmap/index.js 90
+1:let port = 3039,
+3:	appName = 'roadmapper',
+11:	router = new express.Router(),
+25:app.use(cors())
+28:router.use(express.static('public'))
+31:router.use(bodyParser.urlencoded({extended: true}))
+69:app.use(`/${appName}`, router)
+84:	app.listen(port, () => {
+=== toolbox-generators
+CLAUDE.md index.js LICENSE node_modules nodemon.json package.json package-lock.json public README.md res uploads 
+toolbox-generators/index.js 885
+1:let port = 3012,
+2:	appName = 'image-generators',
+10:	router = new express.Router(),
+172:app.use(cors())
+176:app.use(bodyParser.urlencoded({extended: false}))
+180:app.use((req, res, next) => {
+191:router.use(cacheHeaders.stampGate)
+194:router.use(express.static(`${__dirname}/public`, cacheHeaders.staticOptions))
+198:router.use('/download-base64', multer.any(), (req, res) => {
+228:router.use('/fetch-image', (req, res, next) => {
+238:router.use('/fetch-buttons-and-tiles-data', async (req, res, next) => {
+268:router.use('/fetch-all-buttons-and-tiles-templates', async (req, res, next) => {
+296:router.use('/fetch-all-buttons-and-tiles-existing', async (req, res, next) => {
+354:router.use('/save-buttons-and-tiles-template', async (req, res, next) => {
+393:/*router.use('/fetch-all-buttons-and-tiles-templates', (req, res, next) => {
+412:router.use('/fetch-cards-data', cacheHeaders.api, async (req, res) => {
+439:router.use('/fetch-all-cards-existing', cacheHeaders.api, async (req, res) => {
+497:router.use('/save-cards-template', cacheHeaders.api, async (req, res) => {
+531:router.use('/banner', (req, res) => {
+647:router.use('/save-profile-image', upload.fields([{name: 'image', maxCount: 1}, {name: 'source', maxCount: 1}]), async (req, res) => {
+783:router.use('/save-rive-file', (req, res, next) => {
+845:app.use('/banner-generator', router)
+846:app.use(`/${appName}`, router)
+876:	app.listen(port, () => {
+=== toolbox-gift-quiz-converter
+index.js LICENSE node_modules nodemon.json package.json package-lock.json public README.md res test 
+toolbox-gift-quiz-converter/index.js 67
+1:let port = 3045,
+3:	appName = 'gift',
+9:	router = new express.Router(),
+23:app.use(cors())
+28:router.use(cacheHeaders.stampGate)
+36:router.use(express.static(`${__dirname}/public`, cacheHeaders.staticOptions))
+39:app.use(`/${appName}`, router)
+56:		app.listen(port, () => {
+=== toolbox-group-discussion
+Folder.DotSettings.user index.js LICENSE node_modules nodemon.json package.json package-lock.json public public-admin README.md uploads working-files 
+toolbox-group-discussion/index.js 1686
+1:let port = 3002,
+3:	appName = 'group-discussion',
+11:	router = new express.Router(),
+1049:router.use(require('cors')())
+1394:router.use('/new-messages-for-user', async (req, res) => {
+1419:router.use('/fetch-roster', (req, res) => {
+1439:router.use('/upload-image', (req, res, next) => {
+1510:router.use('/set-discussion-page', (req, res) => {
+1531:router.use('/update-viewed', (req, res) => {
+1560:router.use('/fetch-all', async (req, res) => {
+1588:router.use(cacheHeaders.stampGate)
+1597:router.use(express.static(`${__dirname}/public`, cacheHeaders.staticOptions))
+1601:let catchUpRouter = new express.Router()
+1606:catchUpRouter.use(express.static(`${__dirname}/public-admin`, cacheHeaders.staticOptions))
+1607:router.use('/manage', catchUpRouter)
+1612:app.use((req, res, next) => {
+1619:app.use(`/${appName}`, router)
+1680:	httpServer.listen(port, () => {
+=== toolbox-inline-completion-tracker
+data index.js LICENSE node_modules nodemon.json package.json package-lock.json public README.md 
+toolbox-inline-completion-tracker/index.js 506
+1:let port = 3040,
+3:	appName = 'inline-completion-tracker',
+12:	router = new express.Router(),
+159:app.use(cors())
+163:router.use(cacheHeaders.stampGate)
+171:router.use(express.static(`${__dirname}/public`, cacheHeaders.staticOptions))
+177:router.use(express.urlencoded({extended: true, type: ['application/x-www-form-urlencoded', 'text/plain']}))
+475:app.use(`/${appName}`, router)
+499:	app.listen(port, () => {
+=== toolbox-notes
+index.js LICENSE node_modules nodemon.json package.json package-lock.json PLAN.md public README.md 
+toolbox-notes/index.js 1105
+1:let port = 3044,
+3:	appName = 'notes',
+9:	router = new express.Router(),
+245:app.use(cors())
+249:app.use(bodyParser.json({limit: '5mb'}))
+253:app.use((req, res, next) => {
+1058:router.use(cacheHeaders.stampGate)
+1066:router.use(express.static(`${__dirname}/public`, cacheHeaders.staticOptions))
+1069:app.use(`/${appName}`, router)
+1097:	httpServer.listen(port, () => {
+=== toolbox-photospheres
+backups index.js LICENSE multires node_modules nodemon.json objects package.json package-lock.json public README.md res _tmp uploads 
+toolbox-photospheres/index.js 1357
+3:let port = 3006,
+5:	appName = "photospheres",
+8:	router = new express.Router(),
+497:router.use(cors())
+505:app.use(bodyParser.urlencoded({
+510:app.use(bodyParser.json({limit: '50mb'}))
+514:app.use((req, res, next) => {
+522:app.use((req, res, next) => {
+530:router.use('/multires', express.static(`${__dirname}/multires`, cacheHeaders.staticOptions))
+533:router.use('/objects', express.static(`${__dirname}/objects`, cacheHeaders.staticOptions))
+1186:router.use(cacheHeaders.stampGate)
+1194:router.use(express.static(`${__dirname}/public`, cacheHeaders.staticOptions))
+1277:app.use(`/${appName}`, router)
+1342:			let server = app.listen(port, () => {
+1349:			io.listen(server, {
+=== toolbox-podcast-player
+images index.js LICENSE node_modules nodemon.json package.json package-lock.json project.json public README.md uploads url-rewrites.json working-files 
+toolbox-podcast-player/index.js 546
+1:let port = 3003,
+3:	appName = "podcast-player",
+138:	router = new express.Router(),
+155:app.use(require('cors')())
+378:router.use(cacheHeaders.stampGate)
+386:router.use(express.static(`${__dirname}/public`, cacheHeaders.staticOptions))
+389:router.use('/save-progress', (req, res) => {
+515:app.use(`/${appName}`, router)
+538:	app.listen(port, () => {
+=== toolbox-previews
+index.js node_modules package.json package-lock.json public README.md 
+toolbox-previews/index.js 50
+1:let port = 3026,
+2:	appName = 'previews',
+5:	router = new express.Router(),
+21:app.use(cors())
+24:router.use(cacheHeaders.stampGate)
+26:router.use((req, res, next) => {
+39:router.use(express.static(publicDir, cacheHeaders.staticOptions))
+42:app.use(`/${appName}`, router)
+50:app.listen(port, () => console.log(`App started on port:`, port))
+=== toolbox-pronunciation-guide
+assets index.js LICENSE node_modules nodemon.json package.json package-lock.json public README.md 
+toolbox-pronunciation-guide/index.js 164
+1:let port = 3015,
+3:    appName = "pronunciation-ilar",
+9:    router = new express.Router(),
+24:app.use(cors())
+28:router.use('/fetch-content', async (req, res) => {
+60:router.use('/fetch-metadata', async (req, res) => {
+106:router.use('/fetch-available-guides', async (req, res) => {
+130:router.use(cacheHeaders.stampGate)
+138:router.use(express.static(`${__dirname}/public`, cacheHeaders.staticOptions))
+141:app.use(`/${appName}`, router)
+158:        app.listen(port, () => {
+=== toolbox
+CLAUDE.md h5p-previews.js index.js LICENSE node_modules nodemon.json package.json package-lock.json panoptoApi.json panopto-client.js POWER-USER.md public README.md res stub.pid uploads 
+toolbox/index.js 2214
+1:let port = 3027,
+3:	appName = 'ilar-toolbox',
+39:	router = new express.Router(),
+509:app.use(cors())
+512:app.use(bodyParser.urlencoded({extended: false, limit: '500mb'}))
+518:app.use(cacheHeaders.stampGate)
+522:router.use('/sys/js/icons.js', express.static(`${__dirname}/public/sys/js/icons.js`, cacheHeaders.staticOptions))
+526:router.use('/sys', express.static(`${__dirname}/public/sys`, cacheHeaders.staticOptions))
+1609:router.use('/upload-course-backup', multer.any(), async (req, res) => {
+1662:router.use(express.static(`${__dirname}/public`, cacheHeaders.staticOptions))
+1665:router.use('/send-feedback', multer.any(), (req, res) => {
+1779:router.use('/items', (req, res) => {
+1785:router.use('/get-inserts-by-item', async (req, res) => {
+1817:router.use(`/changelog`, (req, res) => {
+2067:router.use('/panopto-auth', async (req, res) => {
+2120:app.use('/editor-popups', router)
+2123:app.use(`/${appName}`, router)
+2124:app.use(`/studydesk-toolbox`, router)
+2139:app.use(/^\/images\/icons\/[^/]+\.svg$/, async (req, res, next) => {
+2173:app.use(`/images`, express.static(`${__dirname}/public/images`, cacheHeaders.staticOptions))
+2207:	app.listen(port, () => {
+=== toolbox-reaction-bar
+documentation index.js LICENSE node_modules nodemon.json package.json package-lock.json public README.md res 
+toolbox-reaction-bar/index.js 840
+1:let port = 3011,
+3:	appName = "reactions",
+7:	router = new express.Router(),
+667:app.use(cors())
+785:router.use('/get-students-seen-reaction-bar', async (req, res) => {
+801:router.use(cacheHeaders.stampGate)
+809:router.use(express.static(`${__dirname}/public`, cacheHeaders.staticOptions))
+812:app.use(`/${appName}`, router)
+833:		app.listen(port, () => {
+=== toolbox-sample-app
+index.js LICENSE node_modules nodemon.json package.json package-lock.json public README.md 
+toolbox-sample-app/index.js 67
+1:let port = 3999,
+3:	appName = 'sample',
+10:	router = new express.Router(),
+24:app.use(cors())
+28:router.use(cacheHeaders.stampGate)
+36:router.use(express.static(`${__dirname}/public`, cacheHeaders.staticOptions))
+39:app.use(`/${appName}`, router)
+56:		app.listen(port, () => {
+=== toolbox-suggest-feature
+index.js LICENSE node_modules nodemon.json package.json package-lock.json public README.md 
+toolbox-suggest-feature/index.js 102
+1:let port = 3043,
+3:	appName = 'suggest-feature',
+9:	router = new express.Router(),
+23:app.use(cors())
+26:app.use(bodyParser.json())
+31:router.use(cacheHeaders.stampGate)
+39:router.use(express.static(`${__dirname}/public`, cacheHeaders.staticOptions))
+42:app.use(`/${appName}`, router)
+44:router.use('/fetch-suggestions', async (req, res) => {
+53:router.use('/save-suggestion', async (req, res) => {
+94:	app.listen(port, () => {

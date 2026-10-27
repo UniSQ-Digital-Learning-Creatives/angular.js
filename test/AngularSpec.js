@@ -46,6 +46,50 @@ describe('angular', function() {
       expect(copy(new Foo()) instanceof Foo).toBe(true);
     });
 
+    it('should not copy inherited enumerable properties of class instances, but keep the prototype', function() {
+      function Point(x) { this.x = x; }
+      Point.prototype.shared = {a: 1};
+      var original = new Point(3);
+      var copied = copy(original);
+      expect(copied instanceof Point).toBe(true);
+      expect(Object.keys(copied)).toEqual(['x']);
+      expect(copied.shared).toBe(Point.prototype.shared);
+    });
+
+    it('should keep a graph with many shared and circular references intact', function() {
+      var nodes = [];
+      for (var i = 0; i < 200; i++) nodes.push({id: i, list: []});
+      for (i = 0; i < 200; i++) {
+        nodes[i].next = nodes[(i + 1) % 200];
+        nodes[i].list.push(nodes[(i + 7) % 200], nodes[(i + 7) % 200]);
+      }
+      var copied = copy({root: nodes[0], again: nodes[0], all: nodes});
+      expect(copied.root).not.toBe(nodes[0]);
+      expect(copied.again).toBe(copied.root);
+      expect(copied.all[0]).toBe(copied.root);
+      expect(copied.all[199].next).toBe(copied.root);
+      expect(copied.all[3].list[0]).toBe(copied.all[10]);
+      expect(copied.all[3].list[1]).toBe(copied.all[10]);
+      expect(copied.all[10]).not.toBe(nodes[10]);
+      expect(copied.all[10].id).toBe(10);
+    });
+
+    it('should copy objects that have an own cloneNode function by calling it', function() {
+      var clone = {cloned: true};
+      var source = {cloneNode: function(deep) { return deep ? clone : null; }};
+      expect(copy(source)).toBe(clone);
+      expect(copy({a: source}).a).toBe(clone);
+    });
+
+    it('should not copy $$hashKey when the key is on a plain nested object or array element', function() {
+      var source = {a: {$$hashKey: 'object:1', b: 1}, list: [{$$hashKey: 'object:2', c: 2}]};
+      var copied = copy(source);
+      expect(copied.a.hasOwnProperty('$$hashKey')).toBe(false);
+      expect(copied.list[0].hasOwnProperty('$$hashKey')).toBe(false);
+      expect(copied).toEqual({a: {b: 1}, list: [{c: 2}]});
+      expect(source.a.$$hashKey).toBe('object:1');
+    });
+
     it('should copy Date', function() {
       var date = new Date(123);
       expect(copy(date) instanceof Date).toBeTruthy();
@@ -1036,6 +1080,80 @@ describe('angular', function() {
       o1.hasOwnProperty = function() {};
       expect(equals(o1, o2)).toBe(false);
     });
+
+    describe('objects with different key orders and key sets', function() {
+      it('should not depend on the order the keys were added in', function() {
+        expect(equals({a: 1, b: 2, c: 3}, {c: 3, a: 1, b: 2})).toBe(true);
+        expect(equals({a: 1, b: 2, c: 3}, {c: 3, a: 1, b: 4})).toBe(false);
+      });
+
+      it('should find an extra defined key on the right whatever its position', function() {
+        expect(equals({a: 1, c: 3}, {a: 1, b: 2, c: 3})).toBe(false);
+        expect(equals({a: 1, c: 3}, {b: 2, a: 1, c: 3})).toBe(false);
+        expect(equals({a: 1, c: 3}, {a: 1, c: 3, b: 2})).toBe(false);
+      });
+
+      it('should ignore extra keys on the right whose value is undefined, a function or that start with $', function() {
+        expect(equals({a: 1}, {a: 1, b: undefined})).toBe(true);
+        expect(equals({a: 1}, {b: undefined, a: 1})).toBe(true);
+        expect(equals({a: 1}, {a: 1, b: function() {}})).toBe(true);
+        expect(equals({a: 1}, {$b: 2, a: 1})).toBe(true);
+        expect(equals({a: 1}, {a: 1, $$hashKey: 'object:3'})).toBe(true);
+      });
+
+      it('should treat a key that is a function on the left as absent', function() {
+        expect(equals({a: 1, f: function() {}}, {a: 1})).toBe(true);
+        expect(equals({a: 1, f: function() {}}, {a: 1, f: 3})).toBe(false);
+        expect(equals({a: 1, f: function() {}}, {f: 3, a: 1})).toBe(false);
+      });
+
+      it('should compare keys whose value is undefined on the left with a missing key on the right', function() {
+        expect(equals({a: 1, b: undefined}, {a: 1})).toBe(true);
+        expect(equals({a: 1, b: undefined}, {a: 1, b: 2})).toBe(false);
+      });
+
+      it('should compare nested objects, arrays and dates in any key order', function() {
+        var d = new Date(2020, 1, 2);
+        expect(equals({x: {y: [1, {z: d}]}, w: /a/g}, {w: /a/g, x: {y: [1, {z: new Date(2020, 1, 2)}]}})).toBe(true);
+        expect(equals({x: {y: [1, {z: d}]}}, {x: {y: [1, {z: new Date(2020, 1, 3)}]}})).toBe(false);
+        expect(equals({x: {y: [1, {z: d}]}}, {x: {y: [1, {z: d}, 3]}})).toBe(false);
+      });
+    });
+
+    it('should return false when an object is compared with a Date or RegExp nested at any depth', function() {
+      expect(equals({a: {}}, {a: new Date()})).toBe(false);
+      expect(equals({a: new Date()}, {a: {}})).toBe(false);
+      expect(equals({a: {}}, {a: /x/})).toBe(false);
+      expect(equals({a: /x/}, {a: {}})).toBe(false);
+      expect(equals({a: []}, {a: {}})).toBe(false);
+      expect(equals({a: {}}, {a: []})).toBe(false);
+    });
+
+    it('should compare instances of classes by their enumerable properties', function() {
+      function Point(x, y) { this.x = x; this.y = y; }
+      Point.prototype.norm = function() { return this.x + this.y; };
+      expect(equals(new Point(1, 2), new Point(1, 2))).toBe(true);
+      expect(equals(new Point(1, 2), new Point(1, 3))).toBe(false);
+      expect(equals(new Point(1, 2), {x: 1, y: 2})).toBe(true);
+    });
+
+    it('should compare objects found by inheritance as an object property would be (for-in)', function() {
+      var proto = {inherited: 5};
+      var a = Object.create(proto);
+      a.own = 1;
+      var b = {own: 1, inherited: 5};
+      expect(equals(a, b)).toBe(true);
+      expect(equals(b, a)).toBe(true);
+      expect(equals(a, {own: 1})).toBe(false);
+    });
+
+    it('should not evaluate or compare Scope and Window instances nested in objects other than by identity', inject(function($rootScope) {
+      var child = $rootScope.$new();
+      expect(equals({s: $rootScope}, {s: $rootScope})).toBe(true);
+      expect(equals({s: $rootScope}, {s: child})).toBe(false);
+      expect(equals({w: window}, {w: window})).toBe(true);
+      expect(equals({w: window}, {w: {}})).toBe(false);
+    }));
   });
 
 
@@ -1117,93 +1235,6 @@ describe('angular', function() {
     });
   });
 
-
-  describe('jq', function() {
-    var element;
-
-    beforeEach(function() {
-      element = document.createElement('html');
-    });
-
-    afterEach(function() {
-      delete jq.name_;
-    });
-
-    it('should return undefined when jq is not set, no jQuery found (the default)', function() {
-      expect(jq()).toBeUndefined();
-    });
-
-    it('should return empty string when jq is enabled manually via [ng-jq] with empty string', function() {
-      element.setAttribute('ng-jq', '');
-      spyOn(document, 'querySelector').and.callFake(function(selector) {
-        if (selector === '[ng-jq]') return element;
-      });
-      expect(jq()).toBe('');
-    });
-
-    it('should return empty string when jq is enabled manually via [data-ng-jq] with empty string', function() {
-      element.setAttribute('data-ng-jq', '');
-      spyOn(document, 'querySelector').and.callFake(function(selector) {
-        if (selector === '[data-ng-jq]') return element;
-      });
-      expect(jq()).toBe('');
-      expect(document.querySelector).toHaveBeenCalledWith('[data-ng-jq]');
-    });
-
-    it('should return empty string when jq is enabled manually via [x-ng-jq] with empty string', function() {
-      element.setAttribute('x-ng-jq', '');
-      spyOn(document, 'querySelector').and.callFake(function(selector) {
-        if (selector === '[x-ng-jq]') return element;
-      });
-      expect(jq()).toBe('');
-      expect(document.querySelector).toHaveBeenCalledWith('[x-ng-jq]');
-    });
-
-    it('should return empty string when jq is enabled manually via [ng:jq] with empty string', function() {
-      element.setAttribute('ng:jq', '');
-      spyOn(document, 'querySelector').and.callFake(function(selector) {
-        if (selector === '[ng\\:jq]') return element;
-      });
-      expect(jq()).toBe('');
-      expect(document.querySelector).toHaveBeenCalledWith('[ng\\:jq]');
-    });
-
-    it('should return "jQuery" when jq is enabled manually via [ng-jq] with value "jQuery"', function() {
-      element.setAttribute('ng-jq', 'jQuery');
-      spyOn(document, 'querySelector').and.callFake(function(selector) {
-        if (selector === '[ng-jq]') return element;
-      });
-      expect(jq()).toBe('jQuery');
-      expect(document.querySelector).toHaveBeenCalledWith('[ng-jq]');
-    });
-
-    it('should return "jQuery" when jq is enabled manually via [data-ng-jq] with value "jQuery"', function() {
-      element.setAttribute('data-ng-jq', 'jQuery');
-      spyOn(document, 'querySelector').and.callFake(function(selector) {
-        if (selector === '[data-ng-jq]') return element;
-      });
-      expect(jq()).toBe('jQuery');
-      expect(document.querySelector).toHaveBeenCalledWith('[data-ng-jq]');
-    });
-
-    it('should return "jQuery" when jq is enabled manually via [x-ng-jq] with value "jQuery"', function() {
-      element.setAttribute('x-ng-jq', 'jQuery');
-      spyOn(document, 'querySelector').and.callFake(function(selector) {
-        if (selector === '[x-ng-jq]') return element;
-      });
-      expect(jq()).toBe('jQuery');
-      expect(document.querySelector).toHaveBeenCalledWith('[x-ng-jq]');
-    });
-
-    it('should return "jQuery" when jq is enabled manually via [ng:jq] with value "jQuery"', function() {
-      element.setAttribute('ng:jq', 'jQuery');
-      spyOn(document, 'querySelector').and.callFake(function(selector) {
-        if (selector === '[ng\\:jq]') return element;
-      });
-      expect(jq()).toBe('jQuery');
-      expect(document.querySelector).toHaveBeenCalledWith('[ng\\:jq]');
-    });
-  });
 
 
   describe('parseKeyValue', function() {

@@ -70,6 +70,14 @@ function $TemplateRequestProvider() {
     function($exceptionHandler, $templateCache, $http, $q, $sce) {
 
       function handleRequestFn(tpl, ignoreRequestError) {
+        // A template that has been loaded before sits in the cache as a plain string: answer from it
+        // without running a whole $http request (request interceptors, pending request count,
+        // promise chain) for every ngInclude / directive using it.
+        if (isString(tpl)) {
+          var cachedTemplate = $templateCache.get(tpl);
+          if (isString(cachedTemplate)) return $q.resolve(cachedTemplate);
+        }
+
         handleRequestFn.totalPendingRequests++;
 
         // We consider the template cache holds only trusted templates, so
